@@ -1,6 +1,6 @@
 module github.com/luna/luna-bot
 
-go 1.25
+go 1.24.4
 
 require (
 	github.com/bwmarrin/discordgo v0.28.1
