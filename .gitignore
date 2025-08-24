@@ -1,0 +1,20 @@
+### Editor ###
+.vscode/
+.DS_Store
+.idea/*
+
+### Environment variables ###
+.env
+.claude
+.db
+.temp
+
+### Binaries ###
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+### Log files ###
+*.log
