@@ -76,7 +76,7 @@ func (c *Context) ReplyEmbedEphemeral(embed *discordgo.MessageEmbed) error {
 }
 
 func (c *Context) DeferReply(ephemeral bool) error {
-	flags := uint64(0)
+	var flags discordgo.MessageFlags
 	if ephemeral {
 		flags = discordgo.MessageFlagsEphemeral
 	}

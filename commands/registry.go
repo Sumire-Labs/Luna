@@ -123,10 +123,11 @@ func (r *Registry) handleInteraction(s *discordgo.Session, i *discordgo.Interact
 	ctx := NewContext(s, i)
 
 	go func() {
-		if err := cmd.Execute(ctx); err != nil {
-			log.Printf("Error executing command %s: %v", cmdName, err)
+		execErr := cmd.Execute(ctx)
+		if execErr != nil {
+			log.Printf("Error executing command %s: %v", cmdName, execErr)
 			
-			errorMsg := fmt.Sprintf("An error occurred while executing the command: %v", err)
+			errorMsg := fmt.Sprintf("An error occurred while executing the command: %v", execErr)
 			if ctx.Interaction.Interaction.AppID != "" {
 				ctx.EditReply(errorMsg)
 			} else {
@@ -141,13 +142,18 @@ func (r *Registry) handleInteraction(s *discordgo.Session, i *discordgo.Interact
 
 		user := ctx.GetUser()
 		if user != nil {
+			var errorMessage string
+			if execErr != nil {
+				errorMessage = execErr.Error()
+			}
+			
 			r.db.LogCommand(
 				guildID,
 				user.ID,
 				cmdName,
 				fmt.Sprintf("%v", ctx.Args),
-				err == nil,
-				fmt.Sprintf("%v", err),
+				execErr == nil,
+				errorMessage,
 			)
 		}
 	}()

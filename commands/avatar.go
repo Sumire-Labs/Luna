@@ -81,7 +81,23 @@ func (c *AvatarCommand) Execute(ctx *Context) error {
 
 	avatarURL := targetUser.AvatarURL("4096")
 	if avatarURL == "" {
-		avatarURL = targetUser.DefaultAvatarURL()
+		// Calculate default avatar URL based on discriminator or user ID
+		var discriminatorInt int
+		if targetUser.Discriminator != "" && targetUser.Discriminator != "0" {
+			// Legacy username system
+			discriminatorInt = 0
+			if d := targetUser.Discriminator; len(d) > 0 {
+				discriminatorInt = int(d[len(d)-1] - '0')
+			}
+		} else {
+			// New username system - use user ID
+			userID := targetUser.ID
+			if len(userID) >= 2 {
+				discriminatorInt = int((userID[len(userID)-2] - '0') + (userID[len(userID)-1] - '0'))
+			}
+			discriminatorInt = discriminatorInt % 5
+		}
+		avatarURL = fmt.Sprintf("https://cdn.discordapp.com/embed/avatars/%d.png", discriminatorInt)
 	}
 
 	embedBuilder := embed.New().
