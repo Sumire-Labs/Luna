@@ -154,7 +154,7 @@ docker run -d --name luna-bot \
 /ping                  # ボットの応答速度確認
 ```
 
-## 🎨 Material Design 3
+## 🎨 Luna Material 1
 
 ### 🌈 カラーパレット
 ```go
