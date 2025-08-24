@@ -9,6 +9,7 @@ import (
 	"github.com/luna/luna-bot/commands"
 	"github.com/luna/luna-bot/config"
 	"github.com/luna/luna-bot/database"
+	"github.com/luna/luna-bot/logging"
 )
 
 type Container struct {
@@ -18,6 +19,7 @@ type Container struct {
 	Bot              *bot.Bot
 	CommandRegistry  *commands.Registry
 	DatabaseService  *database.Service
+	Logger           *logging.Logger
 }
 
 func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
@@ -69,6 +71,10 @@ func (c *Container) initDiscordSession() error {
 
 func (c *Container) initServices() {
 	c.Bot = bot.New(c.Session, c.Config, c.DatabaseService)
+	c.Logger = logging.NewLogger(c.Session, c.Config, c.DatabaseService)
+	
+	// ログハンドラーを登録
+	c.Logger.RegisterHandlers()
 }
 
 func (c *Container) initCommands() {

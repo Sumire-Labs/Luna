@@ -11,19 +11,21 @@ import (
 )
 
 type Registry struct {
-	session  *discordgo.Session
-	config   *config.Config
-	db       *database.Service
-	commands map[string]Command
-	mutex    sync.RWMutex
+	session           *discordgo.Session
+	config            *config.Config
+	db                *database.Service
+	commands          map[string]Command
+	interactionHandler *InteractionHandler
+	mutex             sync.RWMutex
 }
 
 func NewRegistry(session *discordgo.Session, cfg *config.Config, db *database.Service) *Registry {
 	return &Registry{
-		session:  session,
-		config:   cfg,
-		db:       db,
-		commands: make(map[string]Command),
+		session:            session,
+		config:             cfg,
+		db:                 db,
+		commands:           make(map[string]Command),
+		interactionHandler: NewInteractionHandler(session, cfg, db),
 	}
 }
 
@@ -104,6 +106,8 @@ func (r *Registry) RegisterSlashCommands() error {
 	}
 
 	r.session.AddHandler(r.handleInteraction)
+	r.session.AddHandler(r.interactionHandler.HandleComponentInteraction)
+	r.session.AddHandler(r.interactionHandler.HandleModalSubmit)
 
 	return nil
 }
