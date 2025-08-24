@@ -76,6 +76,7 @@ func (c *Container) initCommands() {
 	
 	c.CommandRegistry.Register(commands.NewPingCommand())
 	c.CommandRegistry.Register(commands.NewAvatarCommand())
+	c.CommandRegistry.Register(commands.NewConfigCommand())
 }
 
 func (c *Container) Cleanup() error {
