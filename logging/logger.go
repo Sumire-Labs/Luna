@@ -247,8 +247,9 @@ func (l *Logger) onGuildMemberRemove(s *discordgo.Session, m *discordgo.GuildMem
 	guild, err := s.State.Guild(m.GuildID)
 	if err == nil {
 		for _, member := range guild.Members {
-			if member.User.ID == m.User.ID && member.JoinedAt != "" {
-				joinTime, err := time.Parse(time.RFC3339, member.JoinedAt)
+			if member.User.ID == m.User.ID && !member.JoinedAt.IsZero() {
+				joinTime := member.JoinedAt
+				err := (error)(nil)
 				if err == nil {
 					duration := time.Since(joinTime)
 					embedBuilder.AddField("⏱️ 参加期間", fmt.Sprintf("%.0f日間", duration.Hours()/24), true)
@@ -398,23 +399,16 @@ func (l *Logger) onGuildRoleUpdate(s *discordgo.Session, r *discordgo.GuildRoleU
 		return
 	}
 
-	// 変更点を検出
-	changes := l.detectRoleChanges(r.BeforeUpdate, r.Role)
-	if len(changes) == 0 {
-		return
-	}
+	// ロール更新を記録（変更前の情報は利用できないため、現在の状態のみ記録）
 
 	embedBuilder := embed.New().
 		SetTitle("📝 ロールが更新されました").
 		SetColor(embed.M3Colors.Warning).
 		AddField("🎭 ロール", fmt.Sprintf("<@&%s>", r.Role.ID), true).
-		AddField("🕐 更新時刻", fmt.Sprintf("<t:%d:F>", time.Now().Unix()), true)
-
-	for _, change := range changes {
-		embedBuilder.AddField(change.Field, change.Description, false)
-	}
-
-	embedBuilder.SetFooter(fmt.Sprintf("ロールID: %s", r.Role.ID), "")
+		AddField("🏷️ ロール名", r.Role.Name, true).
+		AddField("🎨 カラー", fmt.Sprintf("#%06X", r.Role.Color), true).
+		AddField("🕐 更新時刻", fmt.Sprintf("<t:%d:F>", time.Now().Unix()), true).
+		SetFooter(fmt.Sprintf("ロールID: %s", r.Role.ID), "")
 
 	l.sendLogMessage(channelID, embedBuilder.Build())
 }

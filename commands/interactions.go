@@ -404,10 +404,10 @@ func (h *InteractionHandler) handleTicketSetupModal(s *discordgo.Session, i *dis
 	}
 
 	// Create success embed
-	embedBuilder := embed.Success(
-		"🎫 チケットシステム設定完了！",
-		"チケットシステムが正常に設定されました。",
-	).SetColor(embed.M3Colors.Success)
+	embedBuilder := embed.New().
+		SetTitle("✅ チケットシステム設定完了！").
+		SetDescription("チケットシステムが正常に設定されました。").
+		SetColor(embed.M3Colors.Success)
 
 	// Add configuration details
 	embedBuilder.AddField("📁 カテゴリ", fmt.Sprintf("<#%s>", categoryID), true)
@@ -431,7 +431,7 @@ func (h *InteractionHandler) handleTicketSetupModal(s *discordgo.Session, i *dis
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Embeds: []*discordgo.MessageEmbed{embedBuilder},
+			Embeds: []*discordgo.MessageEmbed{embedBuilder.Build()},
 			Flags:  discordgo.MessageFlagsEphemeral,
 		},
 	})
@@ -537,12 +537,11 @@ func (h *InteractionHandler) handleLoggingSetupModal(s *discordgo.Session, i *di
 	}
 
 	// 成功メッセージを作成
-	embedBuilder := embed.Success(
-		"📝 ログシステム設定完了！",
-		"ログシステムが正常に設定されました。",
-	)
-
-	embedBuilder.AddField("📍 ログチャンネル", fmt.Sprintf("<#%s>", logChannelID), false)
+	embedBuilder := embed.New().
+		SetTitle("✅ ログシステム設定完了！").
+		SetDescription("ログシステムが正常に設定されました。").
+		SetColor(embed.M3Colors.Success).
+		AddField("📍 ログチャンネル", fmt.Sprintf("<#%s>", logChannelID), false)
 	
 	var enabledEvents []string
 	if settings.LogMessageEdits {

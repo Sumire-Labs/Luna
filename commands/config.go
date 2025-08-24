@@ -1,11 +1,7 @@
 package commands
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/bwmarrin/discordgo"
-	"github.com/luna/luna-bot/database"
 	"github.com/luna/luna-bot/embed"
 )
 
