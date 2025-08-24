@@ -2,12 +2,25 @@
 .vscode/
 .DS_Store
 .idea/*
+*.swp
+*.swo
+*~
+*.sublime-*
 
 ### Environment variables ###
 .env
+.env.*
+.env.local
+.env.production
 .claude
-.db
-.temp
+
+### Database ###
+*.db
+*.db-shm
+*.db-wal
+data/
+*.sqlite
+*.sqlite3
 
 ### Binaries ###
 *.exe
@@ -15,6 +28,56 @@
 *.dll
 *.so
 *.dylib
+luna-bot
+dist/
+build/
+
+### Go ###
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+coverage.txt
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Go build cache
+*.mod.sum
 
 ### Log files ###
 *.log
+logs/
+*.log.*
+
+### Temporary files ###
+.temp
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+*.old
+
+### OS ###
+Thumbs.db
+desktop.ini
+.DS_Store
+.AppleDouble
+.LSOverride
+
+### Debug ###
+*.pprof
+debug/
+.debug/
+
+### Documentation ###
+# Usually we don't ignore docs, but generated docs can be
+docs/_build/
+*.generated.md
