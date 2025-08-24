@@ -297,7 +297,7 @@ go tool cover -html=coverage.out
 
 ## 📄 ライセンス
 
-MIT License - 詳細は [LICENSE](LICENSE) ファイルを参照してください。
+LGPL-3.0 License - 詳細は [LICENSE.md](LICENSE.md) ファイルを参照してください。
 
 ## 🙋‍♂️ サポート
 
