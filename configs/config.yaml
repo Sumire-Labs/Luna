@@ -1,0 +1,14 @@
+discord:
+  permissions: 8
+
+database:
+  path: "./data/luna.db"
+  max_connections: 10
+
+bot:
+  prefix: "/"
+  status_message: "Luna Bot | Material Design"
+  activity_type: 0
+  owners:
+    - "your_discord_id_here"
+  debug: false
