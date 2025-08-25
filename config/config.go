@@ -9,9 +9,10 @@ import (
 )
 
 type Config struct {
-	Discord  DiscordConfig  `mapstructure:"discord"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Bot      BotConfig      `mapstructure:"bot"`
+	Discord     DiscordConfig     `mapstructure:"discord"`
+	Database    DatabaseConfig    `mapstructure:"database"`
+	Bot         BotConfig         `mapstructure:"bot"`
+	GoogleCloud GoogleCloudConfig `mapstructure:"google_cloud"`
 }
 
 type DiscordConfig struct {
@@ -32,6 +33,16 @@ type BotConfig struct {
 	ActivityType  int      `mapstructure:"activity_type"`
 	Owners        []string `mapstructure:"owners"`
 	Debug         bool     `mapstructure:"debug"`
+}
+
+type GoogleCloudConfig struct {
+	ProjectID       string `mapstructure:"project_id"`
+	Location        string `mapstructure:"location"`
+	CredentialsPath string `mapstructure:"credentials_path"`
+	GeminiModel     string `mapstructure:"gemini_model"`
+	ImagenModel     string `mapstructure:"imagen_model"`
+	UseStudioAPI    bool   `mapstructure:"use_studio_api"`    // Google AI Studio APIを使うか
+	StudioAPIKey    string `mapstructure:"studio_api_key"`    // Google AI Studio APIキー
 }
 
 func Load() (*Config, error) {
@@ -56,6 +67,16 @@ func Load() (*Config, error) {
 	viper.BindEnv("discord.app_id", "DISCORD_APP_ID")
 	viper.BindEnv("discord.guild_id", "DISCORD_GUILD_ID")
 	viper.BindEnv("bot.debug", "DEBUG")
+	viper.BindEnv("google_cloud.project_id", "GOOGLE_CLOUD_PROJECT_ID")
+	viper.BindEnv("google_cloud.location", "GOOGLE_CLOUD_LOCATION")
+	viper.BindEnv("google_cloud.credentials_path", "GOOGLE_APPLICATION_CREDENTIALS")
+	viper.BindEnv("google_cloud.use_studio_api", "USE_GOOGLE_AI_STUDIO")
+	viper.BindEnv("google_cloud.studio_api_key", "GOOGLE_AI_STUDIO_API_KEY")
+	
+	// デフォルト値設定
+	viper.SetDefault("google_cloud.location", "us-central1")
+	viper.SetDefault("google_cloud.gemini_model", "gemini-2.5-pro-preview-0206")  // Gemini 2.5 Pro 最新版！
+	viper.SetDefault("google_cloud.imagen_model", "imagen-4.0-generate-preview-0606")  // Imagen 4 最新版！
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
