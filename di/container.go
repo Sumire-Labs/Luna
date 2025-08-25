@@ -119,6 +119,7 @@ func (c *Container) initCommands() {
 	c.CommandRegistry.Register(commands.NewAvatarCommand())
 	c.CommandRegistry.Register(commands.NewConfigCommand())
 	c.CommandRegistry.Register(commands.NewEmbedBuilderCommand())
+	c.CommandRegistry.Register(commands.NewActivityCommand(c.DatabaseService))
 	
 	// AI コマンドの登録
 	if c.AIService != nil {
@@ -130,9 +131,10 @@ func (c *Container) initCommands() {
 		c.CommandRegistry.Register(commands.NewAICommandWithStudio(c.GeminiStudio))
 	}
 	
-	// OCR コマンドの登録（Gemini Studio APIが利用可能な場合）
+	// OCR・翻訳コマンドの登録（Gemini Studio APIが利用可能な場合）
 	if c.GeminiStudio != nil {
 		c.CommandRegistry.Register(commands.NewOCRCommand(c.GeminiStudio))
+		c.CommandRegistry.Register(commands.NewTranslateCommand(c.GeminiStudio))
 	}
 }
 
