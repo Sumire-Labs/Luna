@@ -81,19 +81,9 @@ func (c *OCRCommand) Execute(ctx *Context) error {
 	}
 	
 	// オプションから情報を取得
-	var imageURL, mode string
-	var attachment *discordgo.MessageAttachment
-	
-	for _, opt := range ctx.Options {
-		switch opt.Name {
-		case "image_url":
-			imageURL = opt.StringValue()
-		case "mode":
-			mode = opt.StringValue()
-		case "image":
-			attachment = opt.AttachmentValue()
-		}
-	}
+	imageURL := ctx.GetStringArg("image_url")
+	mode := ctx.GetStringArg("mode")
+	attachment := ctx.GetAttachmentArg("image")
 	
 	// デフォルトモード
 	if mode == "" {

@@ -161,3 +161,12 @@ func (c *Context) GetBoolArg(name string) bool {
 	}
 	return false
 }
+
+func (c *Context) GetAttachmentArg(name string) *discordgo.MessageAttachment {
+	if val, ok := c.Args[name]; ok {
+		if attachment, ok := val.(*discordgo.MessageAttachment); ok {
+			return attachment
+		}
+	}
+	return nil
+}

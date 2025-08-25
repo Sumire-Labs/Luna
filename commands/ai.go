@@ -58,13 +58,7 @@ func (c *AICommand) Options() []*discordgo.ApplicationCommandOption {
 
 func (c *AICommand) Execute(ctx *Context) error {
 	// オプションから質問を取得
-	var question string
-	for _, opt := range ctx.Options {
-		if opt.Name == "question" {
-			question = opt.StringValue()
-			break
-		}
-	}
+	question := ctx.GetStringArg("question")
 	
 	if question == "" {
 		return ctx.ReplyEphemeral("❌ 質問を入力してください")
@@ -179,15 +173,8 @@ func (c *ImageCommand) Options() []*discordgo.ApplicationCommandOption {
 
 func (c *ImageCommand) Execute(ctx *Context) error {
 	// オプションからプロンプトとスタイルを取得
-	var prompt, style string
-	for _, opt := range ctx.Options {
-		switch opt.Name {
-		case "prompt":
-			prompt = opt.StringValue()
-		case "style":
-			style = opt.StringValue()
-		}
-	}
+	prompt := ctx.GetStringArg("prompt")
+	style := ctx.GetStringArg("style")
 	
 	if prompt == "" {
 		return ctx.ReplyEphemeral("❌ 画像の説明を入力してください")

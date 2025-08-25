@@ -1195,7 +1195,7 @@ func (h *InteractionHandler) handleEmbedEditModal(s *discordgo.Session, i *disco
 	_, err := s.ChannelMessageEditComplex(&discordgo.MessageEdit{
 		Channel: i.ChannelID,
 		ID:      messageID,
-		Embeds:  []*discordgo.MessageEmbed{embedBuilder.Build()},
+		Embeds:  &[]*discordgo.MessageEmbed{embedBuilder.Build()},
 	})
 
 	if err != nil {
@@ -1371,7 +1371,7 @@ func (h *InteractionHandler) handleTemplateEditModal(s *discordgo.Session, i *di
 	_, err = s.ChannelMessageEditComplex(&discordgo.MessageEdit{
 		Channel: i.ChannelID,
 		ID:      messageID,
-		Embeds:  []*discordgo.MessageEmbed{embedBuilder.Build()},
+		Embeds:  &[]*discordgo.MessageEmbed{embedBuilder.Build()},
 	})
 
 	if err != nil {
@@ -1565,4 +1565,20 @@ func parseColor(colorStr string) (int, error) {
 	}
 
 	return int(color), nil
+}
+
+// getFooterText はembedからフッターテキストを取得します
+func getFooterText(embed *discordgo.MessageEmbed) string {
+	if embed.Footer != nil {
+		return embed.Footer.Text
+	}
+	return ""
+}
+
+// getImageURL はembedから画像URLを取得します
+func getImageURL(embed *discordgo.MessageEmbed) string {
+	if embed.Image != nil {
+		return embed.Image.URL
+	}
+	return ""
 }

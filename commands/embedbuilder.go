@@ -1,10 +1,6 @@
 package commands
 
 import (
-	"fmt"
-	"strconv"
-	"strings"
-
 	"github.com/bwmarrin/discordgo"
 	"github.com/Sumire-Labs/Luna/embed"
 )
