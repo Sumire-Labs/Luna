@@ -12,12 +12,19 @@ import (
 )
 
 type AICommand struct {
-	aiService *ai.Service
+	aiService    *ai.Service
+	geminiStudio *ai.GeminiStudioService
 }
 
 func NewAICommand(aiService *ai.Service) *AICommand {
 	return &AICommand{
 		aiService: aiService,
+	}
+}
+
+func NewAICommandWithStudio(geminiStudio *ai.GeminiStudioService) *AICommand {
+	return &AICommand{
+		geminiStudio: geminiStudio,
 	}
 }
 
@@ -65,7 +72,7 @@ func (c *AICommand) Execute(ctx *Context) error {
 	}
 	
 	// AIサービスが利用可能かチェック
-	if c.aiService == nil {
+	if c.aiService == nil && c.geminiStudio == nil {
 		return ctx.ReplyEphemeral("❌ AI機能は現在利用できません（設定を確認してください）")
 	}
 	
@@ -78,7 +85,15 @@ func (c *AICommand) Execute(ctx *Context) error {
 	aiCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	
-	answer, err := c.aiService.AskGemini(aiCtx, question, ctx.GetUser().ID)
+	var answer string
+	var err error
+	
+	// Gemini Studio APIを優先して使用
+	if c.geminiStudio != nil {
+		answer, err = c.geminiStudio.AskGemini(aiCtx, question, ctx.GetUser().ID)
+	} else {
+		answer, err = c.aiService.AskGemini(aiCtx, question, ctx.GetUser().ID)
+	}
 	if err != nil {
 		errorEmbed := embed.New().
 			SetTitle("❌ エラーが発生しました").

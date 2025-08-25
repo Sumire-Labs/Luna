@@ -120,10 +120,14 @@ func (c *Container) initCommands() {
 	c.CommandRegistry.Register(commands.NewConfigCommand())
 	c.CommandRegistry.Register(commands.NewEmbedBuilderCommand())
 	
-	// AI コマンドの登録（AIサービスが利用可能な場合のみ）
+	// AI コマンドの登録
 	if c.AIService != nil {
+		// Vertex AI使用時
 		c.CommandRegistry.Register(commands.NewAICommand(c.AIService))
 		c.CommandRegistry.Register(commands.NewImageCommand(c.AIService))
+	} else if c.GeminiStudio != nil {
+		// Google AI Studio使用時（askコマンドのみ、imageは非対応）
+		c.CommandRegistry.Register(commands.NewAICommandWithStudio(c.GeminiStudio))
 	}
 	
 	// OCR コマンドの登録（Gemini Studio APIが利用可能な場合）
