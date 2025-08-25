@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/luna/luna-bot/config"
-	"github.com/luna/luna-bot/database"
-	"github.com/luna/luna-bot/embed"
+	"github.com/Sumire-Labs/Luna/config"
+	"github.com/Sumire-Labs/Luna/database"
+	"github.com/Sumire-Labs/Luna/embed"
 )
 
 type Logger struct {

@@ -5,10 +5,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Sumire-Labs/Luna/config"
+	"github.com/Sumire-Labs/Luna/database"
+	"github.com/Sumire-Labs/Luna/embed"
 	"github.com/bwmarrin/discordgo"
-	"github.com/luna/luna-bot/config"
-	"github.com/luna/luna-bot/database"
-	"github.com/luna/luna-bot/embed"
 )
 
 type InteractionHandler struct {
@@ -31,7 +31,7 @@ func (h *InteractionHandler) HandleComponentInteraction(s *discordgo.Session, i 
 	}
 
 	customID := i.MessageComponentData().CustomID
-	
+
 	switch {
 	// メインメニュー
 	case customID == "config_main_tickets":
@@ -46,13 +46,13 @@ func (h *InteractionHandler) HandleComponentInteraction(s *discordgo.Session, i 
 		h.handleViewAllSettings(s, i)
 	case customID == "config_main_reset":
 		h.handleResetMenu(s, i)
-	
+
 	// チケット設定
 	case customID == "ticket_setup_start":
 		h.handleTicketSetupStart(s, i)
 	case customID == "setup_cancel":
 		h.handleSetupCancel(s, i)
-	
+
 	// 埋め込みビルダー - メインメニュー
 	case customID == "embed_main_custom":
 		h.handleEmbedCustomCreate(s, i)
@@ -64,7 +64,7 @@ func (h *InteractionHandler) HandleComponentInteraction(s *discordgo.Session, i 
 		h.handleEmbedHelp(s, i)
 	case customID == "embed_main_colors":
 		h.handleEmbedColorGuide(s, i)
-	
+
 	// 埋め込みビルダー - テンプレート
 	case strings.HasPrefix(customID, "embed_template_"):
 		h.handleEmbedTemplateSelect(s, i)
@@ -72,14 +72,14 @@ func (h *InteractionHandler) HandleComponentInteraction(s *discordgo.Session, i 
 		h.handleTemplateEdit(s, i)
 	case customID == "template_delete":
 		h.handleTemplateDelete(s, i)
-		
+
 	// リセット確認
 	case strings.HasPrefix(customID, "config_reset_confirm_"):
 		feature := strings.TrimPrefix(customID, "config_reset_confirm_")
 		h.handleResetConfirm(s, i, feature)
 	case customID == "config_reset_cancel":
 		h.handleResetCancel(s, i)
-		
+
 	// その他
 	case strings.HasPrefix(customID, "ticket_setup_"):
 		h.handleTicketSetupStep(s, i, customID)
@@ -328,7 +328,7 @@ func (h *InteractionHandler) HandleModalSubmit(s *discordgo.Session, i *discordg
 	}
 
 	data := i.ModalSubmitData()
-	
+
 	switch {
 	case data.CustomID == "ticket_setup_modal":
 		h.handleTicketSetupModal(s, i)
@@ -348,16 +348,16 @@ func (h *InteractionHandler) HandleModalSubmit(s *discordgo.Session, i *discordg
 func (h *InteractionHandler) handleTicketSetupModal(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	data := i.ModalSubmitData()
 	guildID := i.GuildID
-	
+
 	// Extract form data
 	var categoryID, supportRoleID, adminRoleID, logChannelID string
 	var autoCloseHours = 24
-	
+
 	for _, component := range data.Components {
 		for _, comp := range component.(*discordgo.ActionsRow).Components {
 			textInput := comp.(*discordgo.TextInput)
 			value := textInput.Value
-			
+
 			switch textInput.CustomID {
 			case "ticket_category":
 				categoryID = value
@@ -441,15 +441,15 @@ func (h *InteractionHandler) handleTicketSetupModal(s *discordgo.Session, i *dis
 	// Add configuration details
 	embedBuilder.AddField("📁 カテゴリ", fmt.Sprintf("<#%s>", categoryID), true)
 	embedBuilder.AddField("🛡️ サポートロール", fmt.Sprintf("<@&%s>", supportRoleID), true)
-	
+
 	if adminRoleID != "" {
 		embedBuilder.AddField("👑 管理者ロール", fmt.Sprintf("<@&%s>", adminRoleID), true)
 	}
-	
+
 	if logChannelID != "" {
 		embedBuilder.AddField("📝 ログチャンネル", fmt.Sprintf("<#%s>", logChannelID), true)
 	}
-	
+
 	embedBuilder.AddField("⏰ 自動クローズ", fmt.Sprintf("%d時間", autoCloseHours), true)
 	embedBuilder.AddField("💡 次のステップ", strings.Join([]string{
 		"• `/ticket create` でチケット作成メッセージを作成",
@@ -469,14 +469,14 @@ func (h *InteractionHandler) handleTicketSetupModal(s *discordgo.Session, i *dis
 func (h *InteractionHandler) handleLoggingSetupModal(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	data := i.ModalSubmitData()
 	guildID := i.GuildID
-	
+
 	var logChannelID, logEvents string
-	
+
 	for _, component := range data.Components {
 		for _, comp := range component.(*discordgo.ActionsRow).Components {
 			textInput := comp.(*discordgo.TextInput)
 			value := textInput.Value
-			
+
 			switch textInput.CustomID {
 			case "log_channel":
 				logChannelID = value
@@ -527,18 +527,18 @@ func (h *InteractionHandler) handleLoggingSetupModal(s *discordgo.Session, i *di
 	// ログ設定を更新
 	settings.LoggingEnabled = true
 	settings.LogChannelID = logChannelID
-	
+
 	// イベント設定をパース
 	if logEvents == "" {
 		logEvents = "message_edit,message_delete,member_join,member_leave"
 	}
-	
+
 	eventList := strings.Split(logEvents, ",")
 	settings.LogMessageEdits = false
 	settings.LogMessageDeletes = false
 	settings.LogMemberJoins = false
 	settings.LogMemberLeaves = false
-	
+
 	for _, event := range eventList {
 		event = strings.TrimSpace(event)
 		switch event {
@@ -571,7 +571,7 @@ func (h *InteractionHandler) handleLoggingSetupModal(s *discordgo.Session, i *di
 		SetDescription("ログシステムが正常に設定されました。").
 		SetColor(embed.M3Colors.Success).
 		AddField("📍 ログチャンネル", fmt.Sprintf("<#%s>", logChannelID), false)
-	
+
 	var enabledEvents []string
 	if settings.LogMessageEdits {
 		enabledEvents = append(enabledEvents, "• メッセージ編集")
@@ -585,7 +585,7 @@ func (h *InteractionHandler) handleLoggingSetupModal(s *discordgo.Session, i *di
 	if settings.LogMemberLeaves {
 		enabledEvents = append(enabledEvents, "• メンバー退出")
 	}
-	
+
 	if len(enabledEvents) > 0 {
 		embedBuilder.AddField("📋 有効なイベント", strings.Join(enabledEvents, "\n"), false)
 	}
@@ -612,7 +612,7 @@ func (h *InteractionHandler) validateTicketSetup(guildID, categoryID, supportRol
 		if err != nil {
 			return fmt.Errorf("チャンネルの取得に失敗しました")
 		}
-		
+
 		categoryExists := false
 		for _, channel := range channels {
 			if channel.ID == categoryID && channel.Type == discordgo.ChannelTypeGuildCategory {
@@ -620,7 +620,7 @@ func (h *InteractionHandler) validateTicketSetup(guildID, categoryID, supportRol
 				break
 			}
 		}
-		
+
 		if !categoryExists {
 			return fmt.Errorf("カテゴリが見つからないか、カテゴリチャンネルではありません")
 		}
@@ -632,7 +632,7 @@ func (h *InteractionHandler) validateTicketSetup(guildID, categoryID, supportRol
 		if err != nil {
 			return fmt.Errorf("ロールの取得に失敗しました")
 		}
-		
+
 		roleExists := false
 		for _, role := range roles {
 			if role.ID == supportRoleID {
@@ -640,7 +640,7 @@ func (h *InteractionHandler) validateTicketSetup(guildID, categoryID, supportRol
 				break
 			}
 		}
-		
+
 		if !roleExists {
 			return fmt.Errorf("サポートロールが見つかりません")
 		}
@@ -652,7 +652,7 @@ func (h *InteractionHandler) validateTicketSetup(guildID, categoryID, supportRol
 		if err != nil {
 			return fmt.Errorf("ロールの取得に失敗しました")
 		}
-		
+
 		roleExists := false
 		for _, role := range roles {
 			if role.ID == adminRoleID {
@@ -660,7 +660,7 @@ func (h *InteractionHandler) validateTicketSetup(guildID, categoryID, supportRol
 				break
 			}
 		}
-		
+
 		if !roleExists {
 			return fmt.Errorf("管理者ロールが見つかりません")
 		}
@@ -672,7 +672,7 @@ func (h *InteractionHandler) validateTicketSetup(guildID, categoryID, supportRol
 		if err != nil {
 			return fmt.Errorf("チャンネルの取得に失敗しました")
 		}
-		
+
 		channelExists := false
 		for _, channel := range channels {
 			if channel.ID == logChannelID && channel.Type == discordgo.ChannelTypeGuildText {
@@ -680,7 +680,7 @@ func (h *InteractionHandler) validateTicketSetup(guildID, categoryID, supportRol
 				break
 			}
 		}
-		
+
 		if !channelExists {
 			return fmt.Errorf("ログチャンネルが見つからないか、テキストチャンネルではありません")
 		}
@@ -702,7 +702,7 @@ func (h *InteractionHandler) handleSetupCancel(s *discordgo.Session, i *discordg
 
 func (h *InteractionHandler) handleResetConfirm(s *discordgo.Session, i *discordgo.InteractionCreate, feature string) {
 	guildID := i.GuildID
-	
+
 	// Reset the feature
 	if err := h.db.ResetGuildSettings(guildID, feature); err != nil {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -756,7 +756,7 @@ func (h *InteractionHandler) getFeatureName(feature string) string {
 		"logging":    "📝 Logging",
 		"all":        "🔄 All Settings",
 	}
-	
+
 	if name, ok := names[feature]; ok {
 		return name
 	}
@@ -972,9 +972,9 @@ func (h *InteractionHandler) handleEmbedColorGuide(s *discordgo.Session, i *disc
 
 func (h *InteractionHandler) handleEmbedTemplateSelect(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	templateType := strings.TrimPrefix(i.MessageComponentData().CustomID, "embed_template_")
-	
+
 	var embedBuilder *embed.Builder
-	
+
 	switch templateType {
 	case "announcement":
 		embedBuilder = embed.New().
@@ -984,7 +984,7 @@ func (h *InteractionHandler) handleEmbedTemplateSelect(s *discordgo.Session, i *
 			AddField("📅 日時", "YYYY/MM/DD HH:MM", true).
 			AddField("👤 投稿者", "管理者", true).
 			AddField("🔗 詳細", "詳細情報がある場合はここに", false)
-			
+
 	case "rules":
 		embedBuilder = embed.New().
 			SetTitle("📋 サーバールール").
@@ -994,7 +994,7 @@ func (h *InteractionHandler) handleEmbedTemplateSelect(s *discordgo.Session, i *
 			AddField("2️⃣ スパム禁止", "不要なメッセージの連投は禁止です。", false).
 			AddField("3️⃣ 適切なチャンネル使用", "各チャンネルの目的に沿った投稿をしてください。", false).
 			SetFooter("ルール違反には警告・キック・BANの対象となります", "")
-			
+
 	case "faq":
 		embedBuilder = embed.New().
 			SetTitle("❓ よくある質問").
@@ -1003,7 +1003,7 @@ func (h *InteractionHandler) handleEmbedTemplateSelect(s *discordgo.Session, i *
 			AddField("Q1: ○○はどうすればいいですか？", "A1: ○○の方法について説明...", false).
 			AddField("Q2: ○○ができません", "A2: ○○の対処法について...", false).
 			AddField("Q3: その他の質問", "A3: サポートチャンネルでお気軽にお尋ねください", false)
-			
+
 	case "event":
 		embedBuilder = embed.New().
 			SetTitle("🎉 イベント開催のお知らせ").
@@ -1014,7 +1014,7 @@ func (h *InteractionHandler) handleEmbedTemplateSelect(s *discordgo.Session, i *
 			AddField("🎯 参加条件", "特になし（どなたでも参加可能）", false).
 			AddField("🏆 景品", "参加者全員にプレゼント！", false).
 			SetFooter("参加表明は下のボタンをクリック", "")
-			
+
 	case "warning":
 		embedBuilder = embed.New().
 			SetTitle("⚠️ 重要な警告").
@@ -1024,7 +1024,7 @@ func (h *InteractionHandler) handleEmbedTemplateSelect(s *discordgo.Session, i *
 			AddField("📋 対処方法", "推奨される対処方法について", false).
 			AddField("📞 お問い合わせ", "不明な点があれば管理者までご連絡ください", false).
 			SetFooter("この警告を確認したら反応してください", "")
-			
+
 	default:
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -1035,7 +1035,7 @@ func (h *InteractionHandler) handleEmbedTemplateSelect(s *discordgo.Session, i *
 		})
 		return
 	}
-	
+
 	// テンプレート埋め込みを送信
 	response := &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -1059,20 +1059,20 @@ func (h *InteractionHandler) handleEmbedTemplateSelect(s *discordgo.Session, i *
 			},
 		},
 	}
-	
+
 	s.InteractionRespond(i.Interaction, response)
 }
 
 func (h *InteractionHandler) handleEmbedCreateModal(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	data := i.ModalSubmitData()
-	
+
 	var title, description, colorStr, imageURL, footer string
-	
+
 	for _, component := range data.Components {
 		for _, comp := range component.(*discordgo.ActionsRow).Components {
 			textInput := comp.(*discordgo.TextInput)
 			value := textInput.Value
-			
+
 			switch textInput.CustomID {
 			case "embed_title":
 				title = value
@@ -1087,33 +1087,33 @@ func (h *InteractionHandler) handleEmbedCreateModal(s *discordgo.Session, i *dis
 			}
 		}
 	}
-	
+
 	// 埋め込みを構築
 	embedBuilder := embed.New()
-	
+
 	if title != "" {
 		embedBuilder.SetTitle(title)
 	}
-	
+
 	if description != "" {
 		embedBuilder.SetDescription(description)
 	}
-	
+
 	// カラーを解析
 	if colorStr != "" {
 		if color, err := parseColor(colorStr); err == nil {
 			embedBuilder.SetColor(color)
 		}
 	}
-	
+
 	if imageURL != "" {
 		embedBuilder.SetImage(imageURL)
 	}
-	
+
 	if footer != "" {
 		embedBuilder.SetFooter(footer, "")
 	}
-	
+
 	// 埋め込みを送信
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -1142,14 +1142,14 @@ func (h *InteractionHandler) handleEmbedCreateModal(s *discordgo.Session, i *dis
 func (h *InteractionHandler) handleEmbedEditModal(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	data := i.ModalSubmitData()
 	messageID := strings.TrimPrefix(data.CustomID, "embed_edit_modal_")
-	
+
 	var title, description, colorStr, imageURL, footer string
-	
+
 	for _, component := range data.Components {
 		for _, comp := range component.(*discordgo.ActionsRow).Components {
 			textInput := comp.(*discordgo.TextInput)
 			value := textInput.Value
-			
+
 			switch textInput.CustomID {
 			case "embed_title":
 				title = value
@@ -1164,40 +1164,40 @@ func (h *InteractionHandler) handleEmbedEditModal(s *discordgo.Session, i *disco
 			}
 		}
 	}
-	
+
 	// 埋め込みを構築
 	embedBuilder := embed.New()
-	
+
 	if title != "" {
 		embedBuilder.SetTitle(title)
 	}
-	
+
 	if description != "" {
 		embedBuilder.SetDescription(description)
 	}
-	
+
 	// カラーを解析
 	if colorStr != "" {
 		if color, err := parseColor(colorStr); err == nil {
 			embedBuilder.SetColor(color)
 		}
 	}
-	
+
 	if imageURL != "" {
 		embedBuilder.SetImage(imageURL)
 	}
-	
+
 	if footer != "" {
 		embedBuilder.SetFooter(footer, "")
 	}
-	
+
 	// メッセージを編集
 	_, err := s.ChannelMessageEditComplex(&discordgo.MessageEdit{
 		Channel: i.ChannelID,
 		ID:      messageID,
 		Embeds:  []*discordgo.MessageEmbed{embedBuilder.Build()},
 	})
-	
+
 	if err != nil {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -1208,7 +1208,7 @@ func (h *InteractionHandler) handleEmbedEditModal(s *discordgo.Session, i *disco
 		})
 		return
 	}
-	
+
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
@@ -1220,7 +1220,7 @@ func (h *InteractionHandler) handleEmbedEditModal(s *discordgo.Session, i *disco
 
 func (h *InteractionHandler) handleTemplateEdit(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	templateType := strings.TrimPrefix(i.MessageComponentData().CustomID, "template_edit_")
-	
+
 	// 現在のメッセージから埋め込み情報を取得
 	if len(i.Message.Embeds) == 0 {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -1232,9 +1232,9 @@ func (h *InteractionHandler) handleTemplateEdit(s *discordgo.Session, i *discord
 		})
 		return
 	}
-	
+
 	currentEmbed := i.Message.Embeds[0]
-	
+
 	modal := &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseModal,
 		Data: &discordgo.InteractionResponseData{
@@ -1306,14 +1306,14 @@ func (h *InteractionHandler) handleTemplateEditModal(s *discordgo.Session, i *di
 		return
 	}
 	messageID := parts[len(parts)-1]
-	
+
 	var title, description, colorStr, footer string
-	
+
 	for _, component := range data.Components {
 		for _, comp := range component.(*discordgo.ActionsRow).Components {
 			textInput := comp.(*discordgo.TextInput)
 			value := textInput.Value
-			
+
 			switch textInput.CustomID {
 			case "embed_title":
 				title = value
@@ -1326,7 +1326,7 @@ func (h *InteractionHandler) handleTemplateEditModal(s *discordgo.Session, i *di
 			}
 		}
 	}
-	
+
 	// 元の埋め込みを取得
 	originalMessage, err := s.ChannelMessage(i.ChannelID, messageID)
 	if err != nil || len(originalMessage.Embeds) == 0 {
@@ -1339,41 +1339,41 @@ func (h *InteractionHandler) handleTemplateEditModal(s *discordgo.Session, i *di
 		})
 		return
 	}
-	
+
 	// 埋め込みを構築（元のフィールドは保持）
 	embedBuilder := embed.New()
-	
+
 	if title != "" {
 		embedBuilder.SetTitle(title)
 	}
-	
+
 	if description != "" {
 		embedBuilder.SetDescription(description)
 	}
-	
+
 	// カラーを解析
 	if colorStr != "" {
 		if color, err := parseColor(colorStr); err == nil {
 			embedBuilder.SetColor(color)
 		}
 	}
-	
+
 	// 元のフィールドを復元
 	for _, field := range originalMessage.Embeds[0].Fields {
 		embedBuilder.AddField(field.Name, field.Value, field.Inline)
 	}
-	
+
 	if footer != "" {
 		embedBuilder.SetFooter(footer, "")
 	}
-	
+
 	// メッセージを編集
 	_, err = s.ChannelMessageEditComplex(&discordgo.MessageEdit{
 		Channel: i.ChannelID,
 		ID:      messageID,
 		Embeds:  []*discordgo.MessageEmbed{embedBuilder.Build()},
 	})
-	
+
 	if err != nil {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -1384,7 +1384,7 @@ func (h *InteractionHandler) handleTemplateEditModal(s *discordgo.Session, i *di
 		})
 		return
 	}
-	
+
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
@@ -1406,7 +1406,7 @@ func (h *InteractionHandler) handleTemplateDelete(s *discordgo.Session, i *disco
 		})
 		return
 	}
-	
+
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
@@ -1418,7 +1418,7 @@ func (h *InteractionHandler) handleTemplateDelete(s *discordgo.Session, i *disco
 
 func (h *InteractionHandler) handleEmbedEditRequestModal(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	data := i.ModalSubmitData()
-	
+
 	var messageID string
 	for _, component := range data.Components {
 		for _, comp := range component.(*discordgo.ActionsRow).Components {
@@ -1429,7 +1429,7 @@ func (h *InteractionHandler) handleEmbedEditRequestModal(s *discordgo.Session, i
 			}
 		}
 	}
-	
+
 	// メッセージを取得して編集可能かチェック
 	message, err := s.ChannelMessage(i.ChannelID, messageID)
 	if err != nil {
@@ -1442,7 +1442,7 @@ func (h *InteractionHandler) handleEmbedEditRequestModal(s *discordgo.Session, i
 		})
 		return
 	}
-	
+
 	if message.Author.ID != s.State.User.ID {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -1453,7 +1453,7 @@ func (h *InteractionHandler) handleEmbedEditRequestModal(s *discordgo.Session, i
 		})
 		return
 	}
-	
+
 	if len(message.Embeds) == 0 {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -1464,9 +1464,9 @@ func (h *InteractionHandler) handleEmbedEditRequestModal(s *discordgo.Session, i
 		})
 		return
 	}
-	
+
 	currentEmbed := message.Embeds[0]
-	
+
 	modal := &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseModal,
 		Data: &discordgo.InteractionResponseData{
@@ -1545,24 +1545,24 @@ func (h *InteractionHandler) handleEmbedEditRequestModal(s *discordgo.Session, i
 
 // ヘルパー関数
 func parseColor(colorStr string) (int, error) {
-	
+
 	colorStr = strings.TrimSpace(colorStr)
-	
+
 	// # で始まる場合は除去
 	if strings.HasPrefix(colorStr, "#") {
 		colorStr = colorStr[1:]
 	}
-	
+
 	// 0x で始まる場合は除去
 	if strings.HasPrefix(strings.ToLower(colorStr), "0x") {
 		colorStr = colorStr[2:]
 	}
-	
+
 	// 16進数として解析
 	color, err := strconv.ParseInt(colorStr, 16, 32)
 	if err != nil {
 		return embed.M3Colors.Primary, err
 	}
-	
+
 	return int(color), nil
 }

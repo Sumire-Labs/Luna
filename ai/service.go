@@ -10,7 +10,7 @@ import (
 
 	aiplatform "cloud.google.com/go/aiplatform/apiv1"
 	"cloud.google.com/go/aiplatform/apiv1/aiplatformpb"
-	"github.com/luna/luna-bot/config"
+	"github.com/Sumire-Labs/Luna/config"
 	"google.golang.org/api/option"
 	"google.golang.org/protobuf/types/known/structpb"
 )

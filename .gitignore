@@ -11,7 +11,18 @@
 .env
 .env.local
 .env.production
+.env.development
+.env.test
 .claude
+
+### Google Cloud Credentials ###
+credentials.json
+service-account.json
+*.pem
+*.p12
+gcloud-key.json
+google-credentials.json
+service-account-key.json
 
 ### Database ###
 *.db

@@ -83,31 +83,12 @@ make deps
 
 3. **環境設定**
 ```bash
+# .envファイル作成と設定
 cp .env.example .env
-# .env ファイルを編集してトークンを設定
+# .envファイルを編集してトークンとAPIキーを設定
 ```
 
-4. **設定ファイル作成**
-```yaml
-# configs/config.yaml
-discord:
-  token: "YOUR_BOT_TOKEN"
-  app_id: "YOUR_APPLICATION_ID"
-  guild_id: "YOUR_GUILD_ID"  # 開発用（オプション）
-
-database:
-  path: "./data/luna.db"
-  max_connections: 10
-
-bot:
-  prefix: "!"
-  status: "🌙 Luna Bot"
-  activity_type: 0  # Playing
-  debug: false
-  owners: ["YOUR_USER_ID"]
-```
-
-5. **ビルドと実行**
+4. **ビルドと実行**
 ```bash
 make build
 make run

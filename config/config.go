@@ -50,10 +50,7 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("error loading .env file: %w", err)
 	}
 
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath("./configs")
-	viper.AddConfigPath(".")
+	// config.yamlは使用せず、環境変数のみで設定
 
 	viper.SetDefault("discord.permissions", 8)
 	viper.SetDefault("database.path", "./data/luna.db")
@@ -78,11 +75,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("google_cloud.gemini_model", "gemini-2.5-pro-preview-0206")  // Gemini 2.5 Pro 最新版！
 	viper.SetDefault("google_cloud.imagen_model", "imagen-4.0-generate-preview-0606")  // Imagen 4 最新版！
 
-	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, fmt.Errorf("error reading config file: %w", err)
-		}
-	}
+	// YAMLファイルは使用せず、環境変数のみで設定するためReadInConfig()は削除
 
 	var cfg Config
 	if err := viper.Unmarshal(&cfg); err != nil {

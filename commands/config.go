@@ -2,7 +2,7 @@ package commands
 
 import (
 	"github.com/bwmarrin/discordgo"
-	"github.com/luna/luna-bot/embed"
+	"github.com/Sumire-Labs/Luna/embed"
 )
 
 type ConfigCommand struct{}

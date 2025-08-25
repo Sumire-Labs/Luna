@@ -5,12 +5,12 @@ import (
 	"database/sql"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/luna/luna-bot/ai"
-	"github.com/luna/luna-bot/bot"
-	"github.com/luna/luna-bot/commands"
-	"github.com/luna/luna-bot/config"
-	"github.com/luna/luna-bot/database"
-	"github.com/luna/luna-bot/logging"
+	"github.com/Sumire-Labs/Luna/ai"
+	"github.com/Sumire-Labs/Luna/bot"
+	"github.com/Sumire-Labs/Luna/commands"
+	"github.com/Sumire-Labs/Luna/config"
+	"github.com/Sumire-Labs/Luna/database"
+	"github.com/Sumire-Labs/Luna/logging"
 )
 
 type Container struct {

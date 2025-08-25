@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/luna/luna-bot/config"
-	"github.com/luna/luna-bot/database"
+	"github.com/Sumire-Labs/Luna/config"
+	"github.com/Sumire-Labs/Luna/database"
 )
 
 type Bot struct {

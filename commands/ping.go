@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/luna/luna-bot/embed"
+	"github.com/Sumire-Labs/Luna/embed"
 )
 
 type PingCommand struct{}

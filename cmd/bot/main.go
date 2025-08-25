@@ -7,8 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/luna/luna-bot/config"
-	"github.com/luna/luna-bot/di"
+	"github.com/Sumire-Labs/Luna/config"
+	"github.com/Sumire-Labs/Luna/di"
 )
 
 func main() {

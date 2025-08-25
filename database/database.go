@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	_ "modernc.org/sqlite"
-	"github.com/luna/luna-bot/config"
+	"github.com/Sumire-Labs/Luna/config"
 )
 
 func Connect(cfg config.DatabaseConfig) (*sql.DB, error) {
