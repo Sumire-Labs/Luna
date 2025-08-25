@@ -7,6 +7,9 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/spf13/viper v1.20.1
 	modernc.org/sqlite v1.38.2
+	cloud.google.com/go/aiplatform v1.68.0
+	google.golang.org/api v0.180.0
+	google.golang.org/genproto/googleapis/api v0.0.0-20240520151616-dc85e6b867a5
 )
 
 require (
