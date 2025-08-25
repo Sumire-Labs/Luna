@@ -7,6 +7,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/Sumire-Labs/Luna/ai"
 	"github.com/Sumire-Labs/Luna/bot"
+	"github.com/Sumire-Labs/Luna/bump"
 	"github.com/Sumire-Labs/Luna/commands"
 	"github.com/Sumire-Labs/Luna/config"
 	"github.com/Sumire-Labs/Luna/database"
@@ -23,6 +24,7 @@ type Container struct {
 	Logger           *logging.Logger
 	AIService        *ai.Service
 	GeminiStudio     *ai.GeminiStudioService
+	BumpHandler      *bump.Handler
 }
 
 func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
@@ -89,9 +91,14 @@ func (c *Container) initDiscordSession() error {
 func (c *Container) initServices() {
 	c.Bot = bot.New(c.Session, c.Config, c.DatabaseService)
 	c.Logger = logging.NewLogger(c.Session, c.Config, c.DatabaseService)
+	c.BumpHandler = bump.NewHandler(c.Session, c.DatabaseService)
 	
-	// ログハンドラーを登録
+	// ハンドラーを登録
 	c.Logger.RegisterHandlers()
+	c.BumpHandler.RegisterHandlers()
+	
+	// 起動時に保留中のBumpリマインダーをチェック
+	go c.BumpHandler.CheckPendingReminders()
 }
 
 func (c *Container) initAIService() error {

@@ -78,7 +78,7 @@ func (c *ConfigCommand) showMainMenu(ctx *Context) error {
 		AddField("🛡️ モデレーション", "自動管理機能", true).
 		AddField("👋 ウェルカム", "新メンバー歓迎機能", true).
 		AddField("📝 ログ", "サーバーログ機能", true).
-		AddBlankField(true).
+		AddField("🔔 Bump通知", "DISBOARD Bump通知", true).
 		AddBlankField(true).
 		SetFooter("ボタンをクリックして設定を開始", "")
 
@@ -109,6 +109,15 @@ func (c *ConfigCommand) showMainMenu(ctx *Context) error {
 					Label:    "📝 ログ設定",
 					CustomID: "config_main_logging",
 				},
+				discordgo.Button{
+					Style:    discordgo.SecondaryButton,
+					Label:    "🔔 Bump設定",
+					CustomID: "config_main_bump",
+				},
+			},
+		},
+		discordgo.ActionsRow{
+			Components: []discordgo.MessageComponent{
 				discordgo.Button{
 					Style:    discordgo.SuccessButton,
 					Label:    "📋 設定確認",

@@ -42,6 +42,8 @@ func (h *InteractionHandler) HandleComponentInteraction(s *discordgo.Session, i 
 		h.handleWelcomeSetup(s, i)
 	case customID == "config_main_logging":
 		h.handleLoggingSetup(s, i)
+	case customID == "config_main_bump":
+		h.handleBumpConfig(s, i)
 	case customID == "config_main_view":
 		h.handleViewAllSettings(s, i)
 	case customID == "config_main_reset":
@@ -342,6 +344,8 @@ func (h *InteractionHandler) HandleModalSubmit(s *discordgo.Session, i *discordg
 		h.handleTemplateEditModal(s, i)
 	case data.CustomID == "embed_edit_request_modal":
 		h.handleEmbedEditRequestModal(s, i)
+	case data.CustomID == "modal_bump_settings":
+		h.handleBumpSettingsSubmit(s, i)
 	}
 }
 
@@ -1581,4 +1585,113 @@ func getImageURL(embed *discordgo.MessageEmbed) string {
 		return embed.Image.URL
 	}
 	return ""
+}
+
+// handleBumpConfig はBump通知設定を処理します
+func (h *InteractionHandler) handleBumpConfig(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseModal,
+		Data: &discordgo.InteractionResponseData{
+			CustomID: "modal_bump_settings",
+			Title:    "🔔 Bump通知設定",
+			Components: []discordgo.MessageComponent{
+				discordgo.ActionsRow{
+					Components: []discordgo.MessageComponent{
+						discordgo.TextInput{
+							CustomID:    "bump_channel",
+							Label:       "通知チャンネルID",
+							Style:       discordgo.TextInputShort,
+							Placeholder: "例: 1234567890123456789",
+							Required:    true,
+							MaxLength:   20,
+						},
+					},
+				},
+				discordgo.ActionsRow{
+					Components: []discordgo.MessageComponent{
+						discordgo.TextInput{
+							CustomID:    "bump_role",
+							Label:       "通知ロールID（任意）",
+							Style:       discordgo.TextInputShort,
+							Placeholder: "例: 1234567890123456789（空欄可）",
+							Required:    false,
+							MaxLength:   20,
+						},
+					},
+				},
+			},
+		},
+	})
+}
+
+// handleBumpSettingsSubmit はBump設定のモーダル送信を処理します
+func (h *InteractionHandler) handleBumpSettingsSubmit(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	data := i.ModalSubmitData()
+	guildID := i.GuildID
+	
+	// 現在の設定を取得
+	settings, err := h.db.GetGuildSettings(guildID)
+	if err != nil {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "❌ 設定の取得に失敗しました",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+	
+	// フォームデータを処理
+	for _, row := range data.Components {
+		if r, ok := row.(*discordgo.ActionsRow); ok {
+			for _, comp := range r.Components {
+				if input, ok := comp.(*discordgo.TextInput); ok {
+					switch input.CustomID {
+					case "bump_channel":
+						settings.BumpChannelID = input.Value
+					case "bump_role":
+						settings.BumpRoleID = input.Value
+					}
+				}
+			}
+		}
+	}
+	
+	// Bump機能を有効化
+	settings.BumpEnabled = true
+	
+	// 設定を保存
+	if err := h.db.UpsertGuildSettings(settings); err != nil {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "❌ 設定の保存に失敗しました",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+	
+	// 成功メッセージ
+	embedBuilder := embed.New().
+		SetTitle("✅ Bump通知設定完了").
+		SetDescription("DISBOARD Bump通知機能を設定しました！").
+		SetColor(embed.M3Colors.Success).
+		AddField("📢 通知チャンネル", fmt.Sprintf("<#%s>", settings.BumpChannelID), true)
+	
+	if settings.BumpRoleID != "" {
+		embedBuilder.AddField("🔔 通知ロール", fmt.Sprintf("<@&%s>", settings.BumpRoleID), true)
+	}
+	
+	embedBuilder.AddField("📌 使い方", 
+		"DISBOARDで `/bump` を実行すると、2時間後に自動で通知が送信されます", false)
+	
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Embeds: []*discordgo.MessageEmbed{embedBuilder.Build()},
+			Flags:  discordgo.MessageFlagsEphemeral,
+		},
+	})
 }

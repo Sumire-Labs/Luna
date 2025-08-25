@@ -87,6 +87,13 @@ func (s *Service) Migrate() error {
 			log_member_joins BOOLEAN DEFAULT TRUE,
 			log_member_leaves BOOLEAN DEFAULT TRUE,
 			
+			-- Bump Settings
+			bump_enabled BOOLEAN DEFAULT FALSE,
+			bump_channel_id TEXT,
+			bump_role_id TEXT,
+			bump_last_time DATETIME,
+			bump_reminder_sent BOOLEAN DEFAULT FALSE,
+			
 			-- General Settings
 			settings_json TEXT,
 			
@@ -252,6 +259,13 @@ type GuildSettings struct {
 	LogMemberJoins      bool `json:"log_member_joins"`
 	LogMemberLeaves     bool `json:"log_member_leaves"`
 	
+	// Bump Settings
+	BumpEnabled        bool      `json:"bump_enabled"`
+	BumpChannelID      string    `json:"bump_channel_id"`
+	BumpRoleID         string    `json:"bump_role_id"`
+	BumpLastTime       *time.Time `json:"bump_last_time"`
+	BumpReminderSent   bool      `json:"bump_reminder_sent"`
+	
 	// Metadata
 	SettingsJSON string    `json:"settings_json"`
 	CreatedAt    time.Time `json:"created_at"`
@@ -270,6 +284,7 @@ func (s *Service) GetGuildSettings(guildID string) (*GuildSettings, error) {
 			welcome_enabled, welcome_channel_id, welcome_message, welcome_role_id,
 			logging_enabled, log_channel_id, log_message_edits, log_message_deletes,
 			log_member_joins, log_member_leaves,
+			bump_enabled, bump_channel_id, bump_role_id, bump_last_time, bump_reminder_sent,
 			settings_json, created_at, updated_at
 		FROM guild_settings 
 		WHERE guild_id = ?
@@ -283,6 +298,7 @@ func (s *Service) GetGuildSettings(guildID string) (*GuildSettings, error) {
 		&settings.WelcomeEnabled, &settings.WelcomeChannelID, &settings.WelcomeMessage, &settings.WelcomeRoleID,
 		&settings.LoggingEnabled, &settings.LogChannelID, &settings.LogMessageEdits, &settings.LogMessageDeletes,
 		&settings.LogMemberJoins, &settings.LogMemberLeaves,
+		&settings.BumpEnabled, &settings.BumpChannelID, &settings.BumpRoleID, &settings.BumpLastTime, &settings.BumpReminderSent,
 		&settings.SettingsJSON, &settings.CreatedAt, &settings.UpdatedAt,
 	)
 	
@@ -309,8 +325,10 @@ func (s *Service) UpsertGuildSettings(settings *GuildSettings) error {
 			moderation_enabled, moderation_log_channel_id, automod_enabled,
 			welcome_enabled, welcome_channel_id, welcome_message, welcome_role_id,
 			logging_enabled, log_channel_id, log_message_edits, log_message_deletes,
-			log_member_joins, log_member_leaves, settings_json
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			log_member_joins, log_member_leaves,
+			bump_enabled, bump_channel_id, bump_role_id, bump_last_time, bump_reminder_sent,
+			settings_json
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(guild_id) DO UPDATE SET
 			ticket_enabled = excluded.ticket_enabled,
 			ticket_category_id = excluded.ticket_category_id,
@@ -333,6 +351,11 @@ func (s *Service) UpsertGuildSettings(settings *GuildSettings) error {
 			log_message_deletes = excluded.log_message_deletes,
 			log_member_joins = excluded.log_member_joins,
 			log_member_leaves = excluded.log_member_leaves,
+			bump_enabled = excluded.bump_enabled,
+			bump_channel_id = excluded.bump_channel_id,
+			bump_role_id = excluded.bump_role_id,
+			bump_last_time = excluded.bump_last_time,
+			bump_reminder_sent = excluded.bump_reminder_sent,
 			settings_json = excluded.settings_json,
 			updated_at = CURRENT_TIMESTAMP
 	`
@@ -344,7 +367,9 @@ func (s *Service) UpsertGuildSettings(settings *GuildSettings) error {
 		settings.ModerationEnabled, settings.ModerationLogChannelID, settings.AutomodEnabled,
 		settings.WelcomeEnabled, settings.WelcomeChannelID, settings.WelcomeMessage, settings.WelcomeRoleID,
 		settings.LoggingEnabled, settings.LogChannelID, settings.LogMessageEdits, settings.LogMessageDeletes,
-		settings.LogMemberJoins, settings.LogMemberLeaves, settings.SettingsJSON,
+		settings.LogMemberJoins, settings.LogMemberLeaves,
+		settings.BumpEnabled, settings.BumpChannelID, settings.BumpRoleID, settings.BumpLastTime, settings.BumpReminderSent,
+		settings.SettingsJSON,
 	)
 	
 	return err
@@ -407,4 +432,65 @@ func (s *Service) ResetGuildSettings(guildID, feature string) error {
 	
 	_, err := s.db.Exec(query, guildID)
 	return err
+}
+
+// Bump関連のメソッド
+func (s *Service) UpdateBumpTime(guildID string) error {
+	query := `
+		UPDATE guild_settings SET
+			bump_last_time = CURRENT_TIMESTAMP,
+			bump_reminder_sent = FALSE,
+			updated_at = CURRENT_TIMESTAMP
+		WHERE guild_id = ?
+	`
+	_, err := s.db.Exec(query, guildID)
+	return err
+}
+
+func (s *Service) MarkBumpReminderSent(guildID string) error {
+	query := `
+		UPDATE guild_settings SET
+			bump_reminder_sent = TRUE,
+			updated_at = CURRENT_TIMESTAMP
+		WHERE guild_id = ?
+	`
+	_, err := s.db.Exec(query, guildID)
+	return err
+}
+
+func (s *Service) GetBumpableGuilds() ([]*GuildSettings, error) {
+	query := `
+		SELECT guild_id, bump_enabled, bump_channel_id, bump_role_id, 
+		       bump_last_time, bump_reminder_sent
+		FROM guild_settings
+		WHERE bump_enabled = TRUE 
+		AND bump_last_time IS NOT NULL 
+		AND bump_reminder_sent = FALSE
+		AND datetime(bump_last_time, '+2 hours') <= datetime('now')
+	`
+	
+	rows, err := s.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	
+	var guilds []*GuildSettings
+	for rows.Next() {
+		settings := &GuildSettings{}
+		err := rows.Scan(
+			&settings.GuildID,
+			&settings.BumpEnabled,
+			&settings.BumpChannelID,
+			&settings.BumpRoleID,
+			&settings.BumpLastTime,
+			&settings.BumpReminderSent,
+		)
+		if err != nil {
+			continue
+		}
+		guilds = append(guilds, settings)
+	}
+	
+	return guilds, rows.Err()
 }
