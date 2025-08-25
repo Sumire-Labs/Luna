@@ -83,6 +83,7 @@ func (c *Container) initCommands() {
 	c.CommandRegistry.Register(commands.NewPingCommand())
 	c.CommandRegistry.Register(commands.NewAvatarCommand())
 	c.CommandRegistry.Register(commands.NewConfigCommand())
+	c.CommandRegistry.Register(commands.NewEmbedBuilderCommand())
 }
 
 func (c *Container) Cleanup() error {

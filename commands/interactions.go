@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -51,6 +52,12 @@ func (h *InteractionHandler) HandleComponentInteraction(s *discordgo.Session, i 
 		h.handleTicketSetupStart(s, i)
 	case customID == "setup_cancel":
 		h.handleSetupCancel(s, i)
+	
+	// 埋め込みビルダー
+	case strings.HasPrefix(customID, "template_edit_"):
+		h.handleTemplateEdit(s, i)
+	case customID == "template_delete":
+		h.handleTemplateDelete(s, i)
 		
 	// リセット確認
 	case strings.HasPrefix(customID, "config_reset_confirm_"):
@@ -308,11 +315,17 @@ func (h *InteractionHandler) HandleModalSubmit(s *discordgo.Session, i *discordg
 
 	data := i.ModalSubmitData()
 	
-	switch data.CustomID {
-	case "ticket_setup_modal":
+	switch {
+	case data.CustomID == "ticket_setup_modal":
 		h.handleTicketSetupModal(s, i)
-	case "logging_setup_modal":
+	case data.CustomID == "logging_setup_modal":
 		h.handleLoggingSetupModal(s, i)
+	case data.CustomID == "embed_create_modal":
+		h.handleEmbedCreateModal(s, i)
+	case strings.HasPrefix(data.CustomID, "embed_edit_modal_"):
+		h.handleEmbedEditModal(s, i)
+	case strings.HasPrefix(data.CustomID, "template_edit_modal_"):
+		h.handleTemplateEditModal(s, i)
 	}
 }
 
@@ -732,4 +745,383 @@ func (h *InteractionHandler) getFeatureName(feature string) string {
 		return name
 	}
 	return feature
+}
+
+// 埋め込みビルダー関連のハンドラー
+
+func (h *InteractionHandler) handleEmbedCreateModal(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	data := i.ModalSubmitData()
+	
+	var title, description, colorStr, imageURL, footer string
+	
+	for _, component := range data.Components {
+		for _, comp := range component.(*discordgo.ActionsRow).Components {
+			textInput := comp.(*discordgo.TextInput)
+			value := textInput.Value
+			
+			switch textInput.CustomID {
+			case "embed_title":
+				title = value
+			case "embed_description":
+				description = value
+			case "embed_color":
+				colorStr = value
+			case "embed_image":
+				imageURL = value
+			case "embed_footer":
+				footer = value
+			}
+		}
+	}
+	
+	// 埋め込みを構築
+	embedBuilder := embed.New()
+	
+	if title != "" {
+		embedBuilder.SetTitle(title)
+	}
+	
+	if description != "" {
+		embedBuilder.SetDescription(description)
+	}
+	
+	// カラーを解析
+	if colorStr != "" {
+		if color, err := parseColor(colorStr); err == nil {
+			embedBuilder.SetColor(color)
+		}
+	}
+	
+	if imageURL != "" {
+		embedBuilder.SetImage(imageURL)
+	}
+	
+	if footer != "" {
+		embedBuilder.SetFooter(footer, "")
+	}
+	
+	// 埋め込みを送信
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Embeds: []*discordgo.MessageEmbed{embedBuilder.Build()},
+			Components: []discordgo.MessageComponent{
+				&discordgo.ActionsRow{
+					Components: []discordgo.MessageComponent{
+						&discordgo.Button{
+							Style:    discordgo.SecondaryButton,
+							Label:    "✏️ 編集",
+							CustomID: "embed_edit_request",
+						},
+						&discordgo.Button{
+							Style:    discordgo.DangerButton,
+							Label:    "🗑️ 削除",
+							CustomID: "embed_delete",
+						},
+					},
+				},
+			},
+		},
+	})
+}
+
+func (h *InteractionHandler) handleEmbedEditModal(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	data := i.ModalSubmitData()
+	messageID := strings.TrimPrefix(data.CustomID, "embed_edit_modal_")
+	
+	var title, description, colorStr, imageURL, footer string
+	
+	for _, component := range data.Components {
+		for _, comp := range component.(*discordgo.ActionsRow).Components {
+			textInput := comp.(*discordgo.TextInput)
+			value := textInput.Value
+			
+			switch textInput.CustomID {
+			case "embed_title":
+				title = value
+			case "embed_description":
+				description = value
+			case "embed_color":
+				colorStr = value
+			case "embed_image":
+				imageURL = value
+			case "embed_footer":
+				footer = value
+			}
+		}
+	}
+	
+	// 埋め込みを構築
+	embedBuilder := embed.New()
+	
+	if title != "" {
+		embedBuilder.SetTitle(title)
+	}
+	
+	if description != "" {
+		embedBuilder.SetDescription(description)
+	}
+	
+	// カラーを解析
+	if colorStr != "" {
+		if color, err := parseColor(colorStr); err == nil {
+			embedBuilder.SetColor(color)
+		}
+	}
+	
+	if imageURL != "" {
+		embedBuilder.SetImage(imageURL)
+	}
+	
+	if footer != "" {
+		embedBuilder.SetFooter(footer, "")
+	}
+	
+	// メッセージを編集
+	_, err := s.ChannelMessageEditComplex(&discordgo.MessageEdit{
+		Channel: i.ChannelID,
+		ID:      messageID,
+		Embeds:  []*discordgo.MessageEmbed{embedBuilder.Build()},
+	})
+	
+	if err != nil {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "❌ 埋め込みの編集に失敗しました",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+	
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: "✅ 埋め込みを正常に編集しました！",
+			Flags:   discordgo.MessageFlagsEphemeral,
+		},
+	})
+}
+
+func (h *InteractionHandler) handleTemplateEdit(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	templateType := strings.TrimPrefix(i.MessageComponentData().CustomID, "template_edit_")
+	
+	// 現在のメッセージから埋め込み情報を取得
+	if len(i.Message.Embeds) == 0 {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "❌ 編集可能な埋め込みが見つかりません",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+	
+	currentEmbed := i.Message.Embeds[0]
+	
+	modal := &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseModal,
+		Data: &discordgo.InteractionResponseData{
+			CustomID: fmt.Sprintf("template_edit_modal_%s_%s", templateType, i.Message.ID),
+			Title:    "✏️ テンプレート編集",
+			Components: []discordgo.MessageComponent{
+				&discordgo.ActionsRow{
+					Components: []discordgo.MessageComponent{
+						&discordgo.TextInput{
+							CustomID:    "embed_title",
+							Label:       "タイトル",
+							Style:       discordgo.TextInputShort,
+							Placeholder: "埋め込みのタイトルを入力...",
+							Required:    false,
+							MaxLength:   256,
+							Value:       currentEmbed.Title,
+						},
+					},
+				},
+				&discordgo.ActionsRow{
+					Components: []discordgo.MessageComponent{
+						&discordgo.TextInput{
+							CustomID:    "embed_description",
+							Label:       "説明",
+							Style:       discordgo.TextInputParagraph,
+							Placeholder: "埋め込みの説明を入力...",
+							Required:    false,
+							MaxLength:   4000,
+							Value:       currentEmbed.Description,
+						},
+					},
+				},
+				&discordgo.ActionsRow{
+					Components: []discordgo.MessageComponent{
+						&discordgo.TextInput{
+							CustomID:    "embed_color",
+							Label:       "カラー (16進数)",
+							Style:       discordgo.TextInputShort,
+							Placeholder: "#6750A4",
+							Required:    false,
+							Value:       fmt.Sprintf("#%06X", currentEmbed.Color),
+						},
+					},
+				},
+				&discordgo.ActionsRow{
+					Components: []discordgo.MessageComponent{
+						&discordgo.TextInput{
+							CustomID:    "embed_footer",
+							Label:       "フッター",
+							Style:       discordgo.TextInputShort,
+							Placeholder: "フッターテキスト",
+							Required:    false,
+							MaxLength:   2048,
+							Value:       getFooterText(currentEmbed),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	s.InteractionRespond(i.Interaction, modal)
+}
+
+func (h *InteractionHandler) handleTemplateEditModal(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	data := i.ModalSubmitData()
+	parts := strings.Split(data.CustomID, "_")
+	if len(parts) < 5 {
+		return
+	}
+	messageID := parts[len(parts)-1]
+	
+	var title, description, colorStr, footer string
+	
+	for _, component := range data.Components {
+		for _, comp := range component.(*discordgo.ActionsRow).Components {
+			textInput := comp.(*discordgo.TextInput)
+			value := textInput.Value
+			
+			switch textInput.CustomID {
+			case "embed_title":
+				title = value
+			case "embed_description":
+				description = value
+			case "embed_color":
+				colorStr = value
+			case "embed_footer":
+				footer = value
+			}
+		}
+	}
+	
+	// 元の埋め込みを取得
+	originalMessage, err := s.ChannelMessage(i.ChannelID, messageID)
+	if err != nil || len(originalMessage.Embeds) == 0 {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "❌ 元のメッセージが見つかりません",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+	
+	// 埋め込みを構築（元のフィールドは保持）
+	embedBuilder := embed.New()
+	
+	if title != "" {
+		embedBuilder.SetTitle(title)
+	}
+	
+	if description != "" {
+		embedBuilder.SetDescription(description)
+	}
+	
+	// カラーを解析
+	if colorStr != "" {
+		if color, err := parseColor(colorStr); err == nil {
+			embedBuilder.SetColor(color)
+		}
+	}
+	
+	// 元のフィールドを復元
+	for _, field := range originalMessage.Embeds[0].Fields {
+		embedBuilder.AddField(field.Name, field.Value, field.Inline)
+	}
+	
+	if footer != "" {
+		embedBuilder.SetFooter(footer, "")
+	}
+	
+	// メッセージを編集
+	_, err = s.ChannelMessageEditComplex(&discordgo.MessageEdit{
+		Channel: i.ChannelID,
+		ID:      messageID,
+		Embeds:  []*discordgo.MessageEmbed{embedBuilder.Build()},
+	})
+	
+	if err != nil {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "❌ テンプレートの編集に失敗しました",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+	
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: "✅ テンプレートを正常に編集しました！",
+			Flags:   discordgo.MessageFlagsEphemeral,
+		},
+	})
+}
+
+func (h *InteractionHandler) handleTemplateDelete(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	err := s.ChannelMessageDelete(i.ChannelID, i.Message.ID)
+	if err != nil {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "❌ メッセージの削除に失敗しました",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+	
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: "🗑️ 埋め込みを削除しました",
+			Flags:   discordgo.MessageFlagsEphemeral,
+		},
+	})
+}
+
+// ヘルパー関数
+func parseColor(colorStr string) (int, error) {
+	
+	colorStr = strings.TrimSpace(colorStr)
+	
+	// # で始まる場合は除去
+	if strings.HasPrefix(colorStr, "#") {
+		colorStr = colorStr[1:]
+	}
+	
+	// 0x で始まる場合は除去
+	if strings.HasPrefix(strings.ToLower(colorStr), "0x") {
+		colorStr = colorStr[2:]
+	}
+	
+	// 16進数として解析
+	color, err := strconv.ParseInt(colorStr, 16, 32)
+	if err != nil {
+		return embed.M3Colors.Primary, err
+	}
+	
+	return int(color), nil
 }
