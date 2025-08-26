@@ -3,6 +3,7 @@ package logging
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -12,9 +13,26 @@ import (
 )
 
 type Logger struct {
-	session *discordgo.Session
-	config  *config.Config
-	db      *database.Service
+	session      *discordgo.Session
+	config       *config.Config
+	db           *database.Service
+	messageCache *MessageCache
+}
+
+// メッセージキャッシュ構造体
+type MessageCache struct {
+	mu       sync.RWMutex
+	messages map[string]*CachedMessage
+}
+
+// キャッシュされるメッセージ情報
+type CachedMessage struct {
+	Content     string
+	AuthorID    string
+	AuthorName  string
+	Attachments []string
+	Embeds      int
+	Timestamp   time.Time
 }
 
 type LogEvent string
@@ -40,10 +58,14 @@ func NewLogger(session *discordgo.Session, cfg *config.Config, db *database.Serv
 		session: session,
 		config:  cfg,
 		db:      db,
+		messageCache: &MessageCache{
+			messages: make(map[string]*CachedMessage),
+		},
 	}
 }
 
 func (l *Logger) RegisterHandlers() {
+	l.session.AddHandler(l.onMessageCreate)  // メッセージをキャッシュ
 	l.session.AddHandler(l.onMessageUpdate)
 	l.session.AddHandler(l.onMessageDelete)
 	l.session.AddHandler(l.onGuildMemberAdd)
@@ -56,6 +78,9 @@ func (l *Logger) RegisterHandlers() {
 	l.session.AddHandler(l.onGuildRoleUpdate)
 	l.session.AddHandler(l.onGuildBanAdd)
 	l.session.AddHandler(l.onGuildBanRemove)
+	
+	// 古いメッセージを定期的にクリーンアップ
+	go l.cleanupOldMessages()
 }
 
 func (l *Logger) shouldLog(guildID string, eventType LogEvent) (bool, string) {
@@ -90,6 +115,48 @@ func (l *Logger) sendLogMessage(channelID string, embed *discordgo.MessageEmbed)
 	}
 }
 
+// メッセージ作成時にキャッシュ
+func (l *Logger) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
+	if m.Author == nil || m.Author.Bot {
+		return // ボットのメッセージは無視
+	}
+	
+	// メッセージ情報をキャッシュ
+	l.messageCache.mu.Lock()
+	defer l.messageCache.mu.Unlock()
+	
+	attachments := make([]string, len(m.Attachments))
+	for i, att := range m.Attachments {
+		attachments[i] = att.Filename
+	}
+	
+	l.messageCache.messages[m.ID] = &CachedMessage{
+		Content:     m.Content,
+		AuthorID:    m.Author.ID,
+		AuthorName:  m.Author.Username,
+		Attachments: attachments,
+		Embeds:      len(m.Embeds),
+		Timestamp:   time.Now(),
+	}
+}
+
+// 古いメッセージを定期的に削除
+func (l *Logger) cleanupOldMessages() {
+	ticker := time.NewTicker(30 * time.Minute)
+	defer ticker.Stop()
+	
+	for range ticker.C {
+		l.messageCache.mu.Lock()
+		now := time.Now()
+		for id, msg := range l.messageCache.messages {
+			if now.Sub(msg.Timestamp) > 2*time.Hour {
+				delete(l.messageCache.messages, id)
+			}
+		}
+		l.messageCache.mu.Unlock()
+	}
+}
+
 // メッセージ編集ログ
 func (l *Logger) onMessageUpdate(s *discordgo.Session, m *discordgo.MessageUpdate) {
 	if m.GuildID == "" || m.Author == nil || m.Author.Bot {
@@ -101,14 +168,31 @@ func (l *Logger) onMessageUpdate(s *discordgo.Session, m *discordgo.MessageUpdat
 		return
 	}
 
-	// 元のメッセージを取得（可能であれば）
+	// キャッシュから元のメッセージを取得
 	var oldContent string
-	if m.BeforeUpdate != nil {
+	var cachedMsg *CachedMessage
+	
+	l.messageCache.mu.RLock()
+	if cached, exists := l.messageCache.messages[m.ID]; exists {
+		cachedMsg = cached
+		oldContent = cached.Content
+	}
+	l.messageCache.mu.RUnlock()
+	
+	// BeforeUpdateがあれば優先
+	if m.BeforeUpdate != nil && m.BeforeUpdate.Content != "" {
 		oldContent = m.BeforeUpdate.Content
 	}
 
 	if oldContent == m.Content {
 		return // 内容に変更がない場合はログしない
+	}
+	
+	// キャッシュを更新
+	if cachedMsg != nil {
+		l.messageCache.mu.Lock()
+		l.messageCache.messages[m.ID].Content = m.Content
+		l.messageCache.mu.Unlock()
 	}
 
 	embedBuilder := embed.New().
@@ -124,6 +208,8 @@ func (l *Logger) onMessageUpdate(s *discordgo.Session, m *discordgo.MessageUpdat
 			oldContent = oldContent[:1000] + "..."
 		}
 		embedBuilder.AddField("📜 編集前", oldContent, false)
+	} else {
+		embedBuilder.AddField("📜 編集前", "*キャッシュなし*", false)
 	}
 
 	newContent := m.Content
@@ -158,7 +244,15 @@ func (l *Logger) onMessageDelete(s *discordgo.Session, m *discordgo.MessageDelet
 		AddField("📍 チャンネル", fmt.Sprintf("<#%s>", m.ChannelID), true).
 		AddField("🕐 削除時刻", fmt.Sprintf("<t:%d:F>", time.Now().Unix()), true)
 
-	// メッセージの情報が利用可能な場合
+	// キャッシュから削除されたメッセージ情報を取得
+	var cachedMsg *CachedMessage
+	l.messageCache.mu.RLock()
+	if cached, exists := l.messageCache.messages[m.ID]; exists {
+		cachedMsg = cached
+	}
+	l.messageCache.mu.RUnlock()
+
+	// BeforeDeleteが利用可能な場合はそちらを優先
 	if m.BeforeDelete != nil {
 		msg := m.BeforeDelete
 		if msg.Author != nil && !msg.Author.Bot {
@@ -184,6 +278,41 @@ func (l *Logger) onMessageDelete(s *discordgo.Session, m *discordgo.MessageDelet
 		if len(msg.Embeds) > 0 {
 			embedBuilder.AddField("🖼️ Embed", fmt.Sprintf("%d個のEmbedが含まれていました", len(msg.Embeds)), false)
 		}
+	} else if cachedMsg != nil {
+		// キャッシュから情報を復元
+		embedBuilder.AddField("👤 作成者", fmt.Sprintf("<@%s> (%s)", cachedMsg.AuthorID, cachedMsg.AuthorName), true)
+		
+		if cachedMsg.Content != "" {
+			content := cachedMsg.Content
+			if len(content) > 1000 {
+				content = content[:1000] + "..."
+			}
+			embedBuilder.AddField("📜 削除されたメッセージ", content, false)
+		} else {
+			embedBuilder.AddField("📜 削除されたメッセージ", "*内容なし*", false)
+		}
+
+		if len(cachedMsg.Attachments) > 0 {
+			attachmentList := make([]string, len(cachedMsg.Attachments))
+			for i, filename := range cachedMsg.Attachments {
+				attachmentList[i] = fmt.Sprintf("• %s", filename)
+			}
+			embedBuilder.AddField("📎 添付ファイル", strings.Join(attachmentList, "\n"), false)
+		}
+
+		if cachedMsg.Embeds > 0 {
+			embedBuilder.AddField("🖼️ Embed", fmt.Sprintf("%d個のEmbedが含まれていました", cachedMsg.Embeds), false)
+		}
+	} else {
+		// キャッシュもBeforeDeleteも利用できない場合
+		embedBuilder.AddField("📜 削除されたメッセージ", "*メッセージ情報を取得できませんでした*", false)
+	}
+	
+	// キャッシュから削除
+	if cachedMsg != nil {
+		l.messageCache.mu.Lock()
+		delete(l.messageCache.messages, m.ID)
+		l.messageCache.mu.Unlock()
 	}
 
 	embedBuilder.SetFooter(fmt.Sprintf("メッセージID: %s", m.ID), "")
