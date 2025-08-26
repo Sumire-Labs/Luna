@@ -41,8 +41,8 @@ type GoogleCloudConfig struct {
 	CredentialsPath string `mapstructure:"credentials_path"`
 	GeminiModel     string `mapstructure:"gemini_model"`
 	ImagenModel     string `mapstructure:"imagen_model"`
-	UseStudioAPI    bool   `mapstructure:"use_studio_api"`    // Google AI Studio APIを使うか
-	StudioAPIKey    string `mapstructure:"studio_api_key"`    // Google AI Studio APIキー
+	UseStudioAPI    bool   `mapstructure:"use_studio_api"` // Google AI Studio APIを使うか
+	StudioAPIKey    string `mapstructure:"studio_api_key"` // Google AI Studio APIキー
 }
 
 func Load() (*Config, error) {
@@ -69,11 +69,11 @@ func Load() (*Config, error) {
 	viper.BindEnv("google_cloud.credentials_path", "GOOGLE_APPLICATION_CREDENTIALS")
 	viper.BindEnv("google_cloud.use_studio_api", "USE_GOOGLE_AI_STUDIO")
 	viper.BindEnv("google_cloud.studio_api_key", "GOOGLE_AI_STUDIO_API_KEY")
-	
+
 	// デフォルト値設定
 	viper.SetDefault("google_cloud.location", "us-central1")
-	viper.SetDefault("google_cloud.gemini_model", "gemini-2.5-pro-preview-0206")  // Gemini 2.5 Pro 最新版！
-	viper.SetDefault("google_cloud.imagen_model", "imagen-4.0-generate-preview-0606")  // Imagen 4 最新版！
+	viper.SetDefault("google_cloud.gemini_model", "gemini-2.5-flash-lite")
+	viper.SetDefault("google_cloud.imagen_model", "imagen-4.0-fast-generate-preview-06-06")
 
 	// YAMLファイルは使用せず、環境変数のみで設定するためReadInConfig()は削除
 
