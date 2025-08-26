@@ -33,6 +33,7 @@ func (h *InteractionHandler) HandleComponentInteraction(s *discordgo.Session, i 
 	}
 
 	customID := i.MessageComponentData().CustomID
+	log.Printf("HandleComponentInteraction called with customID: %s", customID)
 
 	switch {
 	// メインメニュー
@@ -101,6 +102,15 @@ func (h *InteractionHandler) HandleComponentInteraction(s *discordgo.Session, i 
 		h.handleTicketCloseConfirm(s, i, customID)
 	case customID == "ticket_close_cancel":
 		h.handleTicketCloseCancel(s, i)
+	default:
+		log.Printf("Unhandled customID: %s", customID)
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: fmt.Sprintf("❌ 未対応のインタラクション: %s", customID),
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
 	}
 }
 
@@ -125,6 +135,8 @@ func (h *InteractionHandler) handleWelcomeSetup(s *discordgo.Session, i *discord
 }
 
 func (h *InteractionHandler) handleLoggingSetup(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	log.Printf("handleLoggingSetup called for guild: %s, user: %s", i.GuildID, i.Member.User.ID)
+	
 	modal := discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseModal,
 		Data: &discordgo.InteractionResponseData{
@@ -160,7 +172,18 @@ func (h *InteractionHandler) handleLoggingSetup(s *discordgo.Session, i *discord
 		},
 	}
 
-	s.InteractionRespond(i.Interaction, &modal)
+	err := s.InteractionRespond(i.Interaction, &modal)
+	if err != nil {
+		log.Printf("Failed to respond to logging setup interaction: %v", err)
+		// フォールバックレスポンス
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: fmt.Sprintf("❌ ログ設定モーダルの表示に失敗しました: %v", err),
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+	}
 }
 
 func (h *InteractionHandler) handleViewAllSettings(s *discordgo.Session, i *discordgo.InteractionCreate) {
