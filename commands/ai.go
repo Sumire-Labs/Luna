@@ -77,9 +77,7 @@ func (c *AICommand) Execute(ctx *Context) error {
 	}
 	
 	// 処理中メッセージ
-	defer ctx.Session.InteractionRespond(ctx.Interaction.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
-	})
+	ctx.DeferReply(false)
 	
 	// Geminiに質問
 	aiCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -101,10 +99,7 @@ func (c *AICommand) Execute(ctx *Context) error {
 			SetColor(embed.M3Colors.Error).
 			SetFooter("時間をおいて再度お試しください", "")
 		
-		_, _ = ctx.Session.InteractionResponseEdit(ctx.Interaction.Interaction, &discordgo.WebhookEdit{
-			Embeds: &[]*discordgo.MessageEmbed{errorEmbed.Build()},
-		})
-		return nil
+		return ctx.EditReplyEmbed(errorEmbed.Build())
 	}
 	
 	// 回答が長すぎる場合は切り詰める
@@ -120,11 +115,7 @@ func (c *AICommand) Execute(ctx *Context) error {
 		AddField("📝 回答", answer, false).
 		SetFooter(fmt.Sprintf("回答者: %s • Model: Gemini 2.5 Pro", ctx.GetUser().Username), ctx.GetUser().AvatarURL(""))
 	
-	_, err = ctx.Session.InteractionResponseEdit(ctx.Interaction.Interaction, &discordgo.WebhookEdit{
-		Embeds: &[]*discordgo.MessageEmbed{responseEmbed.Build()},
-	})
-	
-	return err
+	return ctx.EditReplyEmbed(responseEmbed.Build())
 }
 
 // ImageCommand は画像生成コマンドです
@@ -216,9 +207,7 @@ func (c *ImageCommand) Execute(ctx *Context) error {
 	}
 	
 	// 処理中メッセージ
-	defer ctx.Session.InteractionRespond(ctx.Interaction.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
-	})
+	ctx.DeferReply(false)
 	
 	// 生成開始メッセージ
 	startEmbed := embed.New().
@@ -228,9 +217,7 @@ func (c *ImageCommand) Execute(ctx *Context) error {
 		AddField("📝 プロンプト", prompt, false).
 		SetFooter("生成には30秒〜1分程度かかる場合があります", "")
 	
-	ctx.Session.InteractionResponseEdit(ctx.Interaction.Interaction, &discordgo.WebhookEdit{
-		Embeds: &[]*discordgo.MessageEmbed{startEmbed.Build()},
-	})
+	ctx.EditReplyEmbed(startEmbed.Build())
 	
 	// Imagenで画像生成
 	aiCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -245,10 +232,7 @@ func (c *ImageCommand) Execute(ctx *Context) error {
 			AddField("💡 ヒント", "プロンプトを変更して再度お試しください", false).
 			SetFooter("画像生成は複雑なプロンプトで失敗することがあります", "")
 		
-		_, _ = ctx.Session.InteractionResponseEdit(ctx.Interaction.Interaction, &discordgo.WebhookEdit{
-			Embeds: &[]*discordgo.MessageEmbed{errorEmbed.Build()},
-		})
-		return nil
+		return ctx.EditReplyEmbed(errorEmbed.Build())
 	}
 	
 	// 画像をDiscordにアップロード
@@ -270,6 +254,7 @@ func (c *ImageCommand) Execute(ctx *Context) error {
 		successEmbed.AddField("🎨 スタイル", getStyleName(style), true)
 	}
 	
+	// ファイル付きの応答編集はWebhookEditを使う必要がある
 	_, err = ctx.Session.InteractionResponseEdit(ctx.Interaction.Interaction, &discordgo.WebhookEdit{
 		Embeds: &[]*discordgo.MessageEmbed{successEmbed.Build()},
 		Files:  []*discordgo.File{file},

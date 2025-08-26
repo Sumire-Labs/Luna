@@ -101,6 +101,12 @@ func (b *Builder) AddBlankField(inline bool) *Builder {
 	return b.AddField("\u200b", "\u200b", inline)
 }
 
+func (b *Builder) SetTimestamp() *Builder {
+	now := time.Now().Format(time.RFC3339)
+	b.embed.Timestamp = now
+	return b
+}
+
 func (b *Builder) Build() *discordgo.MessageEmbed {
 	return b.embed
 }

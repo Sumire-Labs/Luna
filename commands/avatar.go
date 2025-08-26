@@ -19,7 +19,7 @@ func (c *AvatarCommand) Name() string {
 }
 
 func (c *AvatarCommand) Description() string {
-	return "Display a user's avatar and banner"
+	return "ユーザーのアバターとバナーを表示します"
 }
 
 func (c *AvatarCommand) Usage() string {
@@ -27,7 +27,7 @@ func (c *AvatarCommand) Usage() string {
 }
 
 func (c *AvatarCommand) Category() string {
-	return "Utility"
+	return "ユーティリティ"
 }
 
 func (c *AvatarCommand) Aliases() []string {
@@ -43,13 +43,13 @@ func (c *AvatarCommand) Options() []*discordgo.ApplicationCommandOption {
 		{
 			Type:        discordgo.ApplicationCommandOptionUser,
 			Name:        "user",
-			Description: "The user whose avatar to display",
+			Description: "アバターを表示するユーザー",
 			Required:    false,
 		},
 		{
 			Type:        discordgo.ApplicationCommandOptionBoolean,
 			Name:        "show_banner",
-			Description: "Show user's banner if available",
+			Description: "ユーザーのバナーも表示する",
 			Required:    false,
 		},
 	}
@@ -101,29 +101,29 @@ func (c *AvatarCommand) Execute(ctx *Context) error {
 	}
 
 	embedBuilder := embed.New().
-		SetTitle(fmt.Sprintf("👤 %s's Profile", targetUser.Username)).
+		SetTitle(fmt.Sprintf("👤 %s のプロフィール", targetUser.Username)).
 		SetColor(c.getUserColor(member))
 
 	embedBuilder.SetThumbnail(avatarURL)
 
 	formats := c.getAvatarFormats(avatarURL)
-	embedBuilder.AddField("🖼️ Avatar Formats", formats, false)
+	embedBuilder.AddField("🖼️ アバター形式", formats, false)
 
 	sizes := c.getAvatarSizes(avatarURL)
-	embedBuilder.AddField("📐 Available Sizes", sizes, false)
+	embedBuilder.AddField("📐 利用可能なサイズ", sizes, false)
 
 	if showBanner {
 		bannerURL := c.getUserBannerURL(targetUser)
 		if bannerURL != "" {
 			embedBuilder.SetImage(bannerURL)
-			embedBuilder.AddField("🎨 Banner", "[View Full Size]("+bannerURL+")", false)
+			embedBuilder.AddField("🎨 バナー", "[フルサイズで表示]("+bannerURL+")", false)
 		} else {
-			embedBuilder.AddField("🎨 Banner", "No custom banner set", false)
+			embedBuilder.AddField("🎨 バナー", "カスタムバナーは設定されていません", false)
 		}
 	}
 
 	userInfo := c.getUserInfo(targetUser, member)
-	embedBuilder.AddField("ℹ️ User Information", userInfo, false)
+	embedBuilder.AddField("ℹ️ ユーザー情報", userInfo, false)
 
 	embedBuilder.SetFooter(
 		fmt.Sprintf("ID: %s", targetUser.ID),
@@ -142,12 +142,12 @@ func (c *AvatarCommand) getUserColor(member *discordgo.Member) int {
 
 func (c *AvatarCommand) getAvatarFormats(baseURL string) string {
 	if baseURL == "" {
-		return "Default avatar"
+		return "デフォルトアバター"
 	}
 
 	urlParts := strings.Split(baseURL, ".")
 	if len(urlParts) < 2 {
-		return "Unknown format"
+		return "不明な形式"
 	}
 
 	baseURLWithoutExt := strings.Join(urlParts[:len(urlParts)-1], ".")
@@ -197,22 +197,22 @@ func (c *AvatarCommand) getUserBannerURL(user *discordgo.User) string {
 
 func (c *AvatarCommand) getUserInfo(user *discordgo.User, member *discordgo.Member) string {
 	info := []string{
-		fmt.Sprintf("**Username:** %s", user.Username),
-		fmt.Sprintf("**Display Name:** %s", user.GlobalName),
+		fmt.Sprintf("**ユーザー名:** %s", user.Username),
+		fmt.Sprintf("**表示名:** %s", user.GlobalName),
 	}
 
 	if user.Discriminator != "" && user.Discriminator != "0" {
-		info = append(info, fmt.Sprintf("**Discriminator:** #%s", user.Discriminator))
+		info = append(info, fmt.Sprintf("**ディスクリミネータ:** #%s", user.Discriminator))
 	}
 
 	if user.Bot {
-		info = append(info, "**Type:** 🤖 Bot")
+		info = append(info, "**タイプ:** 🤖 Bot")
 	} else {
-		info = append(info, "**Type:** 👤 User")
+		info = append(info, "**タイプ:** 👤 ユーザー")
 	}
 
 	if member != nil && member.Nick != "" {
-		info = append(info, fmt.Sprintf("**Nickname:** %s", member.Nick))
+		info = append(info, fmt.Sprintf("**ニックネーム:** %s", member.Nick))
 	}
 
 	return strings.Join(info, "\n")

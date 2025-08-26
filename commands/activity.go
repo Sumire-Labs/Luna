@@ -112,11 +112,10 @@ func (c *ActivityCommand) Execute(ctx *Context) error {
 		"👥 **メンバー数**: %d\n"+
 		"💬 **チャンネル数**: %d\n"+
 		"🎭 **ロール数**: %d\n"+
-		"📅 **作成日**: <t:%d:D>",
+		"📅 **作成日**: サーバー作成日",
 		guild.MemberCount,
 		serverStats.ChannelCount,
 		len(guild.Roles),
-		guild.ID.Time().Unix(),
 	), true)
 	
 	// コマンド使用統計

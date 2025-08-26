@@ -19,7 +19,7 @@ func (c *PingCommand) Name() string {
 }
 
 func (c *PingCommand) Description() string {
-	return "Check the bot's latency and response time"
+	return "ボットの応答速度とレイテンシを確認します"
 }
 
 func (c *PingCommand) Usage() string {
@@ -27,7 +27,7 @@ func (c *PingCommand) Usage() string {
 }
 
 func (c *PingCommand) Category() string {
-	return "Utility"
+	return "ユーティリティ"
 }
 
 func (c *PingCommand) Aliases() []string {
@@ -53,14 +53,14 @@ func (c *PingCommand) Execute(ctx *Context) error {
 	heartbeat := ctx.Session.HeartbeatLatency().Milliseconds()
 
 	embedBuilder := embed.New().
-		SetTitle("🏓 Pong!").
+		SetTitle("🏓 ポン！").
 		SetColor(embed.M3Colors.Primary).
-		AddField("📡 API Latency", fmt.Sprintf("`%dms`", apiLatency), true).
-		AddField("💓 Websocket Heartbeat", fmt.Sprintf("`%dms`", heartbeat), true).
+		AddField("📡 API レイテンシ", fmt.Sprintf("`%dms`", apiLatency), true).
+		AddField("💓 WebSocket ハートビート", fmt.Sprintf("`%dms`", heartbeat), true).
 		AddBlankField(true)
 
 	quality := c.getConnectionQuality(apiLatency)
-	embedBuilder.AddField("📊 Connection Quality", quality, false)
+	embedBuilder.AddField("📊 接続品質", quality, false)
 
 	statusMessage := c.getStatusMessage(apiLatency)
 	embedBuilder.SetFooter(statusMessage, "")
@@ -71,29 +71,29 @@ func (c *PingCommand) Execute(ctx *Context) error {
 func (c *PingCommand) getConnectionQuality(latency int64) string {
 	switch {
 	case latency < 50:
-		return "🟢 **Excellent** - Lightning fast!"
+		return "🟢 **優秀** - 超高速！"
 	case latency < 100:
-		return "🟢 **Good** - Running smoothly"
+		return "🟢 **良好** - スムーズに動作"
 	case latency < 200:
-		return "🟡 **Fair** - Slight delay"
+		return "🟡 **普通** - 軽微な遅延"
 	case latency < 500:
-		return "🟠 **Poor** - Noticeable lag"
+		return "🟠 **悪い** - 目立つ遅延"
 	default:
-		return "🔴 **Critical** - Severe latency issues"
+		return "🔴 **危険** - 深刻な遅延問題"
 	}
 }
 
 func (c *PingCommand) getStatusMessage(latency int64) string {
 	switch {
 	case latency < 50:
-		return "Bot is performing optimally"
+		return "ボットは最適な性能で動作中"
 	case latency < 100:
-		return "Bot is running normally"
+		return "ボットは正常に動作中"
 	case latency < 200:
-		return "Bot is experiencing minor delays"
+		return "ボットは軽微な遅延が発生中"
 	case latency < 500:
-		return "Bot performance may be degraded"
+		return "ボットの性能が低下している可能性"
 	default:
-		return "Bot is experiencing connectivity issues"
+		return "ボットに接続問題が発生中"
 	}
 }

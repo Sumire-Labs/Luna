@@ -253,9 +253,7 @@ func (c *LockdownCommand) executeFreeze(ctx *Context, reason string, duration in
 	// 権限を大幅に制限
 	newPermissions := everyoneRole.Permissions
 	newPermissions &^= discordgo.PermissionSendMessages
-	newPermissions &^= discordgo.PermissionAddReactions  
-	newPermissions &^= discordgo.PermissionConnect
-	newPermissions &^= discordgo.PermissionSpeak
+	newPermissions &^= discordgo.PermissionAddReactions
 
 	_, err = ctx.Session.GuildRoleEdit(ctx.GetGuild(), everyoneRole.ID, &discordgo.RoleParams{
 		Permissions: &newPermissions,
@@ -268,7 +266,7 @@ func (c *LockdownCommand) executeFreeze(ctx *Context, reason string, duration in
 	// 結果メッセージ
 	resultEmbed := embed.New().
 		SetTitle("❄️ サーバー凍結完了").
-		SetDescription("サーバーが緊急凍結されました。一般メンバーの発言・リアクション・VC参加が制限されています。").
+		SetDescription("サーバーが緊急凍結されました。一般メンバーの発言・リアクションが制限されています。").
 		SetColor(embed.M3Colors.Error).
 		AddField("📋 理由", reason, false).
 		SetTimestamp()
@@ -301,8 +299,6 @@ func (c *LockdownCommand) executeUnfreeze(ctx *Context, reason string) error {
 	newPermissions := everyoneRole.Permissions
 	newPermissions |= discordgo.PermissionSendMessages
 	newPermissions |= discordgo.PermissionAddReactions
-	newPermissions |= discordgo.PermissionConnect
-	newPermissions |= discordgo.PermissionSpeak
 
 	_, err = ctx.Session.GuildRoleEdit(ctx.GetGuild(), everyoneRole.ID, &discordgo.RoleParams{
 		Permissions: &newPermissions,

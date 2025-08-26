@@ -86,23 +86,19 @@ func (r *Registry) RegisterSlashCommands() error {
 		applicationCommands = append(applicationCommands, appCmd)
 	}
 
-	var guildID string
-	if r.config.Discord.GuildID != "" {
-		guildID = r.config.Discord.GuildID
-	}
-
+	// Use global commands (guildID = "")
 	registeredCommands := make([]*discordgo.ApplicationCommand, len(applicationCommands))
 	for i, cmd := range applicationCommands {
 		registered, err := r.session.ApplicationCommandCreate(
 			r.session.State.User.ID,
-			guildID,
+			"", // Empty string for global commands
 			cmd,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to register command %s: %w", cmd.Name, err)
 		}
 		registeredCommands[i] = registered
-		log.Printf("Registered slash command: %s", cmd.Name)
+		log.Printf("Registered global slash command: %s", cmd.Name)
 	}
 
 	r.session.AddHandler(r.handleInteraction)
@@ -164,22 +160,18 @@ func (r *Registry) handleInteraction(s *discordgo.Session, i *discordgo.Interact
 }
 
 func (r *Registry) UnregisterSlashCommands() error {
-	var guildID string
-	if r.config.Discord.GuildID != "" {
-		guildID = r.config.Discord.GuildID
-	}
-
-	commands, err := r.session.ApplicationCommands(r.session.State.User.ID, guildID)
+	// Use global commands (guildID = "")
+	commands, err := r.session.ApplicationCommands(r.session.State.User.ID, "")
 	if err != nil {
 		return fmt.Errorf("failed to get application commands: %w", err)
 	}
 
 	for _, cmd := range commands {
-		err := r.session.ApplicationCommandDelete(r.session.State.User.ID, guildID, cmd.ID)
+		err := r.session.ApplicationCommandDelete(r.session.State.User.ID, "", cmd.ID)
 		if err != nil {
 			return fmt.Errorf("failed to delete command %s: %w", cmd.Name, err)
 		}
-		log.Printf("Unregistered slash command: %s", cmd.Name)
+		log.Printf("Unregistered global slash command: %s", cmd.Name)
 	}
 
 	return nil

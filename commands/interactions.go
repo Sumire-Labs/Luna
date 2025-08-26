@@ -403,17 +403,21 @@ func (h *InteractionHandler) handleTicketSetupModal(s *discordgo.Session, i *dis
 		return
 	}
 
+	// ギルドが存在しない場合は先に登録
+	guild, err := s.Guild(guildID)
+	if err == nil {
+		_ = h.db.UpsertGuild(guildID, guild.Name, "/")
+	}
+
 	// Get current settings
 	settings, err := h.db.GetGuildSettings(guildID)
 	if err != nil {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "❌ 現在の設定の読み込みに失敗しました！",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
-		return
+		// エラーでもデフォルト設定を作成
+		settings = &database.GuildSettings{
+			GuildID:              guildID,
+			TicketAutoCloseHours: 24,
+			TicketMaxPerUser:     3,
+		}
 	}
 
 	// Update ticket settings
@@ -515,17 +519,23 @@ func (h *InteractionHandler) handleLoggingSetupModal(s *discordgo.Session, i *di
 		return
 	}
 
+	// ギルドが存在しない場合は先に登録
+	guild, err := s.Guild(guildID)
+	if err == nil {
+		_ = h.db.UpsertGuild(guildID, guild.Name, "/")
+	}
+
 	// 現在の設定を取得
 	settings, err := h.db.GetGuildSettings(guildID)
 	if err != nil {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "❌ 現在の設定の読み込みに失敗しました！",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
-		return
+		// エラーでもデフォルト設定を作成
+		settings = &database.GuildSettings{
+			GuildID:           guildID,
+			LogMessageEdits:   true,
+			LogMessageDeletes: true,
+			LogMemberJoins:    true,
+			LogMemberLeaves:   true,
+		}
 	}
 
 	// ログ設定を更新
@@ -1629,17 +1639,19 @@ func (h *InteractionHandler) handleBumpSettingsSubmit(s *discordgo.Session, i *d
 	data := i.ModalSubmitData()
 	guildID := i.GuildID
 	
+	// ギルドが存在しない場合は先に登録
+	guild, err := s.Guild(guildID)
+	if err == nil {
+		_ = h.db.UpsertGuild(guildID, guild.Name, "/")
+	}
+
 	// 現在の設定を取得
 	settings, err := h.db.GetGuildSettings(guildID)
 	if err != nil {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: "❌ 設定の取得に失敗しました",
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
-		})
-		return
+		// エラーでもデフォルト設定を作成
+		settings = &database.GuildSettings{
+			GuildID: guildID,
+		}
 	}
 	
 	// フォームデータを処理
