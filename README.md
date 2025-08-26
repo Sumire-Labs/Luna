@@ -1,4 +1,4 @@
-# 🌙 Luna Discord Bot
+# 🌙 Luna - Version 0.1.1
 
 <div align="center">
 
