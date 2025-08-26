@@ -1,0 +1,49 @@
+# Git関連
+.git
+.gitignore
+.github/
+
+# ビルド生成物
+*.exe
+luna
+luna-*
+dist/
+build/
+
+# 設定ファイル（本番では別途マウント）
+config.toml
+.env
+
+# データファイル
+data/
+*.db
+*.db-*
+
+# ログファイル
+*.log
+logs/
+
+# IDE/エディタ
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS生成ファイル
+.DS_Store
+Thumbs.db
+
+# テスト関連
+coverage.out
+coverage.html
+*.test
+
+# その他
+README.md
+CHANGELOG.md
+LICENSE.md
+CONFIG.md
+ARCHITECTURE.md
+API.md
+*.md
