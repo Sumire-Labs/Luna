@@ -76,11 +76,8 @@ jobs:
     
     strategy:
       matrix:
-        goos: [linux, windows, darwin]
-        goarch: [amd64, arm64]
-        exclude:
-          - goos: windows
-            goarch: arm64
+        goos: [linux]
+        goarch: [amd64]
     
     steps:
     - name: 📥 Checkout code
@@ -184,15 +181,13 @@ jobs:
           | OS | アーキテクチャ | ダウンロード |
           |---|---|---|
           | 🐧 Linux | x64 | `luna-linux-amd64` |
-          | 🐧 Linux | ARM64 | `luna-linux-arm64` |
-          | 🪟 Windows | x64 | `luna-windows-amd64.exe` |
-          | 🍎 macOS | Intel | `luna-darwin-amd64` |
-          | 🍎 macOS | Apple Silicon | `luna-darwin-arm64` |
           
           ### 🚀 クイックスタート
           
           ```bash
           # 1. バイナリをダウンロード
+          wget https://github.com/${{ github.repository }}/releases/download/${{ needs.auto-tag.outputs.version }}/luna-linux-amd64
+          
           # 2. 設定ファイルを作成
           cp config.toml.example config.toml
           
@@ -200,10 +195,8 @@ jobs:
           # config.toml を編集してください
           
           # 4. 実行
-          chmod +x luna-*     # Linux/macOS
-          ./luna-*            # Linux/macOS
-          # または
-          luna-windows-*.exe  # Windows
+          chmod +x luna-linux-amd64
+          ./luna-linux-amd64
           ```
           
           ### 📚 ドキュメント
