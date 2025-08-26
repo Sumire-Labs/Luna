@@ -10,10 +10,6 @@ updates:
       time: "09:00"
       timezone: "Asia/Tokyo"
     open-pull-requests-limit: 5
-    reviewers:
-      - "yourusername"  # あなたのGitHubユーザー名に変更
-    assignees:
-      - "yourusername"  # あなたのGitHubユーザー名に変更
     labels:
       - "dependencies"
       - "go"
@@ -30,31 +26,8 @@ updates:
       time: "09:30"
       timezone: "Asia/Tokyo"
     open-pull-requests-limit: 3
-    reviewers:
-      - "yourusername"
-    assignees:
-      - "yourusername"
     labels:
       - "dependencies"
       - "github-actions"
     commit-message:
       prefix: "⚙️"
-
-  # Docker の依存関係更新
-  - package-ecosystem: "docker"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "10:00"
-      timezone: "Asia/Tokyo"
-    open-pull-requests-limit: 2
-    reviewers:
-      - "yourusername"
-    assignees:
-      - "yourusername"
-    labels:
-      - "dependencies"
-      - "docker"
-    commit-message:
-      prefix: "🐳"
