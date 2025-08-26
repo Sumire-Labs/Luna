@@ -2286,23 +2286,9 @@ func (h *InteractionHandler) handleWarThunderSpin(s *discordgo.Session, i *disco
 	minBR, _ := strconv.ParseFloat(minBRStr, 64)
 	maxBR, _ := strconv.ParseFloat(maxBRStr, 64)
 
-	// Create new service instance for spin
-	wtService := services.NewWarThunderSimpleService()
 	gameMode := services.GameMode(gameModeStr)
 	
-	// Get random BR
-	selectedBR, err := wtService.GetRandomBR(gameMode, minBR, maxBR)
-	if err != nil {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseUpdateMessage,
-			Data: &discordgo.InteractionResponseData{
-				Content: fmt.Sprintf("❌ エラー: %s", err.Error()),
-			},
-		})
-		return
-	}
-	
-	// Create simple result embed with GIF
+	// Get game mode color
 	color := 0x4285F4
 	switch gameMode {
 	case services.GameModeAir:
@@ -2313,35 +2299,46 @@ func (h *InteractionHandler) handleWarThunderSpin(s *discordgo.Session, i *disco
 		color = 0x1E90FF
 	}
 	
-	// Get GIF based on game mode and BR
-	var gifURL string
-	switch gameMode {
-	case services.GameModeAir:
-		if selectedBR >= 10.0 {
-			gifURL = "https://media.giphy.com/media/3oEjI1erPMTMBFmNHi/giphy.gif"
-		} else if selectedBR >= 5.0 {
-			gifURL = "https://media.giphy.com/media/l0HlD7sTICn3X5Jf2/giphy.gif"
-		} else {
-			gifURL = "https://media.giphy.com/media/3o7TKUZfJKUKuSWgZG/giphy.gif"
-		}
-	case services.GameModeGround:
-		if selectedBR >= 8.0 {
-			gifURL = "https://media.giphy.com/media/3o7TKqm1mNujcBPSpy/giphy.gif"
-		} else {
-			gifURL = "https://media.giphy.com/media/xT9IgLbNugVohGx8Bi/giphy.gif"
-		}
-	case services.GameModeNaval:
-		gifURL = "https://media.giphy.com/media/xUOwGi5bbHxbT1XncA/giphy.gif"
+	// Show spinning roulette animation first
+	spinningEmbed := embed.New().
+		SetTitle(fmt.Sprintf("%s War Thunder BR ルーレット", gameMode.Emoji())).
+		SetColor(color).
+		SetDescription("🎰 **ルーレット回転中...** 🎰").
+		SetImage("https://media.giphy.com/media/3oEjI67Egb456McTgQ/giphy.gif").
+		Build()
+	
+	// Update message with spinning animation
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseUpdateMessage,
+		Data: &discordgo.InteractionResponseData{
+			Embeds: []*discordgo.MessageEmbed{spinningEmbed},
+		},
+	})
+	
+	// Wait for dramatic effect
+	time.Sleep(3 * time.Second)
+	
+	// Create new service instance for spin
+	wtService := services.NewWarThunderSimpleService()
+	
+	// Get random BR
+	selectedBR, err := wtService.GetRandomBR(gameMode, minBR, maxBR)
+	if err != nil {
+		errorContent := fmt.Sprintf("❌ エラー: %s", err.Error())
+		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+			Content: &errorContent,
+		})
+		return
 	}
+	
+	// Use spinning roulette GIF for result
+	gifURL := "https://media.giphy.com/media/3oEjI67Egb456McTgQ/giphy.gif"
 	
 	resultEmbed := embed.New().
 		SetTitle(fmt.Sprintf("%s War Thunder BR ルーレット", gameMode.Emoji())).
 		SetColor(color).
-		SetDescription(fmt.Sprintf("# **%.1f**", selectedBR))
-	
-	if gifURL != "" {
-		resultEmbed.SetImage(gifURL)
-	}
+		SetDescription(fmt.Sprintf("# **%.1f**", selectedBR)).
+		SetImage(gifURL)
 	
 	// Add BR range info if custom
 	defaultMin, defaultMax := wtService.GetDefaultBRRange(gameMode)
@@ -2363,12 +2360,9 @@ func (h *InteractionHandler) handleWarThunderSpin(s *discordgo.Session, i *disco
 		},
 	}
 	
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseUpdateMessage,
-		Data: &discordgo.InteractionResponseData{
-			Embeds:     []*discordgo.MessageEmbed{resultEmbed.Build()},
-			Components: components,
-		},
+	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+		Embeds:     &[]*discordgo.MessageEmbed{resultEmbed.Build()},
+		Components: &components,
 	})
 }
 

@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/Sumire-Labs/Luna/embed"
@@ -103,13 +104,37 @@ func (cmd *WTCommand) Execute(ctx *Context) error {
 		return ctx.ReplyEphemeral("❌ 最小BRが最大BRより大きくなっています")
 	}
 	
+	// Defer reply for roulette spin animation
+	if err := ctx.DeferReply(false); err != nil {
+		return err
+	}
+	
+	// Show spinning roulette animation first
+	spinningEmbed := embed.New().
+		SetTitle(fmt.Sprintf("%s War Thunder BR ルーレット", gameMode.Emoji())).
+		SetColor(cmd.getGameModeColor(gameMode)).
+		SetDescription("🎰 **ルーレット回転中...** 🎰").
+		SetImage("https://media.giphy.com/media/3oEjI67Egb456McTgQ/giphy.gif"). // Spinning wheel GIF
+		Build()
+	
+	// Update with spinning animation
+	_, err := ctx.Session.InteractionResponseEdit(ctx.Interaction.Interaction, &discordgo.WebhookEdit{
+		Embeds: &[]*discordgo.MessageEmbed{spinningEmbed},
+	})
+	if err != nil {
+		return err
+	}
+	
+	// Wait for dramatic effect
+	time.Sleep(3 * time.Second)
+	
 	// Get random BR
 	selectedBR, err := cmd.wtService.GetRandomBR(gameMode, minBR, maxBR)
 	if err != nil {
-		return ctx.ReplyEphemeral(fmt.Sprintf("❌ エラー: %s", err.Error()))
+		return ctx.EditReply(fmt.Sprintf("❌ エラー: %s", err.Error()))
 	}
 	
-	// Create result embed
+	// Create final result embed
 	resultEmbed := cmd.createResultEmbed(gameMode, selectedBR, minBR, maxBR)
 	
 	// Create simple spin again button
@@ -126,30 +151,26 @@ func (cmd *WTCommand) Execute(ctx *Context) error {
 		},
 	}
 	
-	return ctx.Session.InteractionRespond(ctx.Interaction.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Embeds:     []*discordgo.MessageEmbed{resultEmbed},
-			Components: components,
-		},
+	// Update with final result
+	_, err = ctx.Session.InteractionResponseEdit(ctx.Interaction.Interaction, &discordgo.WebhookEdit{
+		Embeds:     &[]*discordgo.MessageEmbed{resultEmbed},
+		Components: &components,
 	})
+	
+	return err
 }
 
 func (cmd *WTCommand) createResultEmbed(gameMode services.GameMode, br, minBR, maxBR float64) *discordgo.MessageEmbed {
 	color := cmd.getGameModeColor(gameMode)
 	
-	// Select appropriate GIF based on game mode and BR level
-	gifURL := cmd.getResultGIF(gameMode, br)
+	// Use spinning roulette GIF for all results
+	gifURL := "https://media.giphy.com/media/3oEjI67Egb456McTgQ/giphy.gif"
 	
 	builder := embed.New().
 		SetTitle(fmt.Sprintf("%s War Thunder BR ルーレット", gameMode.Emoji())).
 		SetColor(color).
-		SetDescription(fmt.Sprintf("# **%.1f**", br))
-	
-	// Add GIF if available
-	if gifURL != "" {
-		builder.SetImage(gifURL)
-	}
+		SetDescription(fmt.Sprintf("# **%.1f**", br)).
+		SetImage(gifURL)
 	
 	// Add footer with range info if custom
 	defaultMin, defaultMax := cmd.wtService.GetDefaultBRRange(gameMode)
@@ -174,28 +195,4 @@ func (cmd *WTCommand) getGameModeColor(gameMode services.GameMode) int {
 }
 
 
-func (cmd *WTCommand) getResultGIF(gameMode services.GameMode, br float64) string {
-	// Return animated GIFs based on game mode and BR
-	switch gameMode {
-	case services.GameModeAir:
-		if br >= 10.0 {
-			return "https://media.giphy.com/media/3oEjI1erPMTMBFmNHi/giphy.gif" // Jet fighter
-		} else if br >= 5.0 {
-			return "https://media.giphy.com/media/l0HlD7sTICn3X5Jf2/giphy.gif" // WW2 fighter
-		}
-		return "https://media.giphy.com/media/3o7TKUZfJKUKuSWgZG/giphy.gif" // Biplane
-		
-	case services.GameModeGround:
-		if br >= 8.0 {
-			return "https://media.giphy.com/media/3o7TKqm1mNujcBPSpy/giphy.gif" // Modern tank
-		}
-		return "https://media.giphy.com/media/xT9IgLbNugVohGx8Bi/giphy.gif" // WW2 tank
-		
-	case services.GameModeNaval:
-		return "https://media.giphy.com/media/xUOwGi5bbHxbT1XncA/giphy.gif" // Battleship
-		
-	default:
-		return ""
-	}
-}
 
