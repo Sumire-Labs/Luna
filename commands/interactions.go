@@ -586,6 +586,43 @@ func (h *InteractionHandler) handleLoggingSetupModal(s *discordgo.Session, i *di
 		return
 	}
 
+	// ボットの権限を確認
+	botPerms, err := s.UserChannelPermissions(s.State.User.ID, logChannelID)
+	if err != nil {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "❌ ボットの権限を確認できませんでした！",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+
+	// 必要な権限をチェック
+	requiredPerms := int64(discordgo.PermissionViewChannel | discordgo.PermissionSendMessages | discordgo.PermissionEmbedLinks)
+	if botPerms&requiredPerms != requiredPerms {
+		missingPerms := []string{}
+		if botPerms&int64(discordgo.PermissionViewChannel) == 0 {
+			missingPerms = append(missingPerms, "チャンネル閲覧")
+		}
+		if botPerms&int64(discordgo.PermissionSendMessages) == 0 {
+			missingPerms = append(missingPerms, "メッセージ送信")
+		}
+		if botPerms&int64(discordgo.PermissionEmbedLinks) == 0 {
+			missingPerms = append(missingPerms, "埋め込みリンク")
+		}
+
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: fmt.Sprintf("❌ ボットがそのチャンネルに必要な権限がありません！\n不足している権限: %s", strings.Join(missingPerms, ", ")),
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+
 	// ギルドが存在しない場合は先に登録
 	guild, err := s.Guild(guildID)
 	if err == nil {

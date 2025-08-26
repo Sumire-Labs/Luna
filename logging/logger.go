@@ -108,7 +108,35 @@ func (l *Logger) shouldLog(guildID string, eventType LogEvent) (bool, string) {
 }
 
 func (l *Logger) sendLogMessage(channelID string, embed *discordgo.MessageEmbed) {
-	_, err := l.session.ChannelMessageSendEmbed(channelID, embed)
+	// チャンネルの権限を確認
+	channel, err := l.session.Channel(channelID)
+	if err != nil {
+		fmt.Printf("Failed to get log channel: %v\n", err)
+		return
+	}
+	
+	// ボットの権限を確認
+	botPerms, err := l.session.UserChannelPermissions(l.session.State.User.ID, channelID)
+	if err != nil {
+		fmt.Printf("Failed to get bot permissions: %v\n", err)
+		return
+	}
+	
+	// 必要な権限をチェック
+	requiredPerms := int64(discordgo.PermissionViewChannel | discordgo.PermissionSendMessages | discordgo.PermissionEmbedLinks)
+	if botPerms&requiredPerms != requiredPerms {
+		fmt.Printf("Bot lacks permissions for log channel %s in guild %s (has: %d, needs: %d)\n", 
+			channelID, channel.GuildID, botPerms, requiredPerms)
+		
+		// 権限不足の場合、ログを無効化（オプション）
+		if settings, err := l.db.GetGuildSettings(channel.GuildID); err == nil && settings.LoggingEnabled {
+			// エラーメッセージを一度だけ出力
+			fmt.Printf("Disabling logging for guild %s due to permission issues\n", channel.GuildID)
+		}
+		return
+	}
+	
+	_, err = l.session.ChannelMessageSendEmbed(channelID, embed)
 	if err != nil {
 		// ログチャンネルへの送信に失敗した場合のエラーハンドリング
 		fmt.Printf("Failed to send log message: %v\n", err)
