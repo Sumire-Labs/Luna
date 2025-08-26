@@ -228,11 +228,12 @@ Luna/
 # ビルド
 go build -o luna cmd/bot/main.go
 
-# テスト実行
-go test ./...
-
 # 開発用実行（デバッグモード）
 go run cmd/bot/main.go
+
+# リリース作成（"bump to x.x.x" コミットで自動リリース）
+git commit -m "bump to v1.0.0"
+git push origin main
 ```
 
 ---
