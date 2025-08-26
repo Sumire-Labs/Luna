@@ -251,8 +251,8 @@ go run cmd/bot/main.go
 
 ### 📚 ドキュメント
 - [📝 設定ガイド](CONFIG.md)
-- [🏗️ アーキテクチャ](docs/ARCHITECTURE.md)
-- [🔌 API リファレンス](docs/API.md)
+- [🏗️ アーキテクチャ](ARCHITECTURE.md)
+- [🔌 API リファレンス](API.md)
 
 ---
 
