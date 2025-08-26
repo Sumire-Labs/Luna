@@ -53,10 +53,10 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 		// 新しいVertex AI Gemini APIを使用
 		if err := container.initVertexGemini(); err != nil {
 			println("Warning: Vertex AI Gemini service initialization failed:", err.Error())
-			// フォールバックとして旧APIを試す
-			if err := container.initAIService(); err != nil {
-				println("Warning: Vertex AI service initialization also failed:", err.Error())
-			}
+		}
+		// Imagen用に旧APIも初期化
+		if err := container.initAIService(); err != nil {
+			println("Warning: Vertex AI service initialization failed:", err.Error())
 		}
 	}
 	

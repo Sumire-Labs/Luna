@@ -146,7 +146,7 @@ func (c *ImageCommand) Name() string {
 }
 
 func (c *ImageCommand) Description() string {
-	return "Imagen AIで画像を生成します"
+	return "Luna AIで画像を生成します"
 }
 
 func (c *ImageCommand) Usage() string {
@@ -158,7 +158,7 @@ func (c *ImageCommand) Category() string {
 }
 
 func (c *ImageCommand) Aliases() []string {
-	return []string{"画像生成", "imagen"}
+	return []string{"画像生成", "luna_art"}
 }
 
 func (c *ImageCommand) Permission() int64 {
@@ -256,11 +256,11 @@ func (c *ImageCommand) Execute(ctx *Context) error {
 	
 	// 成功応答
 	successEmbed := embed.New().
-		SetTitle("✨ 画像生成完了！").
+		SetTitle("🌙 Luna AI 画像生成完了！").
 		SetColor(embed.M3Colors.Success).
 		AddField("📝 プロンプト", prompt, false).
 		SetImage(fmt.Sprintf("attachment://%s", file.Name)).
-		SetFooter(fmt.Sprintf("生成者: %s • Model: Imagen 4", ctx.GetUser().Username), ctx.GetUser().AvatarURL(""))
+		SetFooter(fmt.Sprintf("生成者: %s • Powered by Luna AI", ctx.GetUser().Username), ctx.GetUser().AvatarURL(""))
 	
 	if style != "" {
 		successEmbed.AddField("🎨 スタイル", getStyleName(style), true)
