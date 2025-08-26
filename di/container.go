@@ -127,6 +127,8 @@ func (c *Container) initCommands() {
 	c.CommandRegistry.Register(commands.NewConfigCommand())
 	c.CommandRegistry.Register(commands.NewEmbedBuilderCommand())
 	c.CommandRegistry.Register(commands.NewActivityCommand(c.DatabaseService))
+	c.CommandRegistry.Register(commands.NewLockdownCommand())
+	c.CommandRegistry.Register(commands.NewPurgeCommand())
 	
 	// AI コマンドの登録
 	if c.AIService != nil {
