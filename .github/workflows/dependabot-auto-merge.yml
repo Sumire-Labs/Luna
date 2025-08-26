@@ -1,0 +1,48 @@
+name: 🤖 Dependabot Auto Merge
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  auto-merge:
+    name: 🚀 Auto Merge Dependencies
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: 📋 Get PR metadata
+      id: dependabot-metadata
+      uses: dependabot/fetch-metadata@v2
+      with:
+        github-token: "${{ secrets.GITHUB_TOKEN }}"
+        
+    - name: ✅ Auto-approve minor and patch updates
+      if: steps.dependabot-metadata.outputs.update-type != 'version-update:semver-major'
+      run: |
+        gh pr review --approve "$PR_URL"
+        gh pr merge --auto --squash "$PR_URL"
+      env:
+        PR_URL: ${{ github.event.pull_request.html_url }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: 🔍 Comment on major updates
+      if: steps.dependabot-metadata.outputs.update-type == 'version-update:semver-major'
+      run: |
+        gh pr comment "$PR_URL" --body "⚠️ **Major Version Update** ⚠️
+        
+        This PR contains a major version update that may include breaking changes.
+        Please review carefully before merging.
+        
+        - **Package**: ${{ steps.dependabot-metadata.outputs.dependency-names }}
+        - **Update Type**: ${{ steps.dependabot-metadata.outputs.update-type }}
+        - **Previous Version**: ${{ steps.dependabot-metadata.outputs.previous-version }}
+        - **New Version**: ${{ steps.dependabot-metadata.outputs.new-version }}"
+      env:
+        PR_URL: ${{ github.event.pull_request.html_url }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

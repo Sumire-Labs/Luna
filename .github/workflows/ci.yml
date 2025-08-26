@@ -1,0 +1,271 @@
+name: 🚀 Luna Bot CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:  # 手動実行を可能にする
+
+env:
+  GO_VERSION: '1.24.4'
+  BINARY_NAME: 'luna'
+
+jobs:
+  # 🧪 テストとリント
+  test:
+    name: 🧪 Test & Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🔧 Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        
+    - name: 📦 Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+          
+    - name: 📚 Download dependencies
+      run: go mod download
+      
+    - name: ✅ Verify dependencies
+      run: go mod verify
+      
+    - name: 🔍 Run vet
+      run: go vet ./...
+      
+    - name: 🧪 Run tests
+      run: |
+        go test -v -race -coverprofile=coverage.out ./...
+        go tool cover -html=coverage.out -o coverage.html
+        
+    - name: 📊 Upload coverage reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: |
+          coverage.out
+          coverage.html
+          
+    - name: 🎯 Check test coverage
+      run: |
+        coverage=$(go tool cover -func=coverage.out | grep total | awk '{print substr($3, 1, length($3)-1)}')
+        echo "Test coverage: $coverage%"
+        if (( $(echo "$coverage < 50" | bc -l) )); then
+          echo "❌ Test coverage is below 50%"
+          exit 1
+        fi
+        echo "✅ Test coverage is acceptable"
+
+  # 🏗️ ビルド
+  build:
+    name: 🏗️ Build
+    runs-on: ubuntu-latest
+    needs: test
+    
+    strategy:
+      matrix:
+        goos: [linux, windows, darwin]
+        goarch: [amd64, arm64]
+        exclude:
+          # Windows ARM64は除外
+          - goos: windows
+            goarch: arm64
+            
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🔧 Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        
+    - name: 📦 Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+          
+    - name: 📚 Download dependencies
+      run: go mod download
+      
+    - name: 🏗️ Build binary
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 0
+      run: |
+        mkdir -p dist
+        binary_name="${BINARY_NAME}"
+        if [ "$GOOS" = "windows" ]; then
+          binary_name="${binary_name}.exe"
+        fi
+        
+        echo "Building ${binary_name} for ${GOOS}/${GOARCH}..."
+        go build -ldflags="-s -w -X main.version=$(git describe --tags --always --dirty)" \
+          -o "dist/${binary_name}-${GOOS}-${GOARCH}${binary_name##luna}" \
+          ./cmd/bot/main.go
+          
+        # ファイルサイズを表示
+        ls -lh "dist/${binary_name}-${GOOS}-${GOARCH}${binary_name##luna}"
+        
+    - name: 📦 Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: luna-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: dist/
+        retention-days: 7
+
+  # 🐳 Docker ビルド
+  docker:
+    name: 🐳 Docker Build
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push'
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🔧 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: 🏷️ Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: luna-bot
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+          
+    - name: 🏗️ Build Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        outputs: type=docker,dest=/tmp/luna-bot.tar
+        
+    - name: 📦 Upload Docker image
+      uses: actions/upload-artifact@v4
+      with:
+        name: docker-image
+        path: /tmp/luna-bot.tar
+        retention-days: 7
+
+  # 🔒 Security Scan
+  security:
+    name: 🔒 Security Scan
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🔧 Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        
+    - name: 🔍 Run Gosec Security Scanner
+      uses: securecodewarrior/github-action-gosec@master
+      with:
+        args: '-fmt sarif -out gosec-report.sarif ./...'
+        
+    - name: 📊 Upload SARIF file
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: gosec-report.sarif
+
+  # 📋 Release (タグ時のみ)
+  release:
+    name: 📋 Create Release
+    runs-on: ubuntu-latest
+    needs: [test, build, docker]
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 📦 Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ./artifacts
+        
+    - name: 📝 Generate changelog
+      id: changelog
+      run: |
+        if [ -f CHANGELOG.md ]; then
+          # CHANGELOGから該当バージョンの変更点を抽出
+          changelog=$(awk '/^## \[/{if(first){exit}else{first=1;next}} first{print}' CHANGELOG.md)
+        else
+          # CHANGELOG.mdがない場合はgit logから生成
+          changelog=$(git log --oneline --pretty=format:"- %s" $(git describe --tags --abbrev=0 HEAD~1)..HEAD)
+        fi
+        echo "changelog<<EOF" >> $GITHUB_OUTPUT
+        echo "$changelog" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+    - name: 🎉 Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        name: Luna Bot ${{ github.ref_name }}
+        body: |
+          ## 🌙 Luna Bot ${{ github.ref_name }}
+          
+          ### 📋 Changes
+          ${{ steps.changelog.outputs.changelog }}
+          
+          ### 📦 Downloads
+          - **Linux (x64)**: `luna-linux-amd64`
+          - **Linux (ARM64)**: `luna-linux-arm64`
+          - **Windows (x64)**: `luna-windows-amd64.exe`
+          - **macOS (x64)**: `luna-darwin-amd64`
+          - **macOS (ARM64)**: `luna-darwin-arm64`
+          - **Docker Image**: Available as artifact
+          
+          ### 🚀 Quick Start
+          ```bash
+          # Linux/macOS
+          chmod +x luna-*
+          cp config.toml.example config.toml
+          # Edit config.toml with your Discord token
+          ./luna-*
+          
+          # Windows
+          copy config.toml.example config.toml
+          # Edit config.toml with your Discord token  
+          luna-windows-amd64.exe
+          ```
+          
+          ---
+          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}
+        files: |
+          artifacts/luna-*/luna-*
+        draft: false
+        prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'rc') }}
+        generate_release_notes: true

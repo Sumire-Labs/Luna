@@ -1,0 +1,122 @@
+name: 🐛 Bug Report
+description: Create a report to help us improve Luna Bot
+title: "[Bug] "
+labels: ["bug", "triage"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report! 🐛
+        
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: 🐛 Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: Describe the bug...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: 🔄 Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. Scroll down to '...'
+        4. See error
+    validations:
+      required: true
+      
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: ✅ Expected Behavior
+      description: A clear and concise description of what you expected to happen.
+      placeholder: What should have happened?
+    validations:
+      required: true
+      
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: ❌ Actual Behavior
+      description: A clear and concise description of what actually happened.
+      placeholder: What actually happened?
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: component
+    attributes:
+      label: 🧩 Component
+      description: Which component is affected?
+      options:
+        - Luna AI (Chat)
+        - Image Generation (/imagine)
+        - OCR (/ocr)
+        - Translation (/translate)
+        - Ticket System
+        - Logging System
+        - Configuration (/config)
+        - Database
+        - Other
+    validations:
+      required: true
+      
+  - type: input
+    id: version
+    attributes:
+      label: 📦 Version
+      description: What version of Luna Bot are you running?
+      placeholder: v0.1.1
+    validations:
+      required: true
+      
+  - type: textarea
+    id: environment
+    attributes:
+      label: 🌍 Environment
+      description: Please provide details about your environment
+      value: |
+        - OS: [e.g. Ubuntu 22.04]
+        - Go Version: [e.g. 1.24.4]
+        - Docker: [Yes/No]
+        - Deployment: [Local/VPS/Cloud]
+      render: markdown
+    validations:
+      required: true
+      
+  - type: textarea
+    id: logs
+    attributes:
+      label: 📋 Logs
+      description: Please provide relevant log output
+      placeholder: Paste log output here...
+      render: shell
+      
+  - type: textarea
+    id: config
+    attributes:
+      label: ⚙️ Configuration
+      description: Please provide your config.toml (with sensitive data removed)
+      placeholder: |
+        [discord]
+        # Remove your actual token!
+        token = "REMOVED"
+        
+        [google_cloud]
+        use_studio_api = true
+        # Remove your actual API key!
+        studio_api_key = "REMOVED"
+      render: toml
+      
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 📝 Additional Context
+      description: Add any other context about the problem here.
+      placeholder: Any additional information that might help...

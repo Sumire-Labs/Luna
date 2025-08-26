@@ -1,0 +1,105 @@
+name: ✨ Feature Request
+description: Suggest an idea for Luna Bot
+title: "[Feature] "
+labels: ["enhancement", "triage"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature! ✨
+        
+  - type: textarea
+    id: feature-description
+    attributes:
+      label: ✨ Feature Description
+      description: A clear and concise description of the feature you'd like to see
+      placeholder: Describe the feature...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: problem-statement
+    attributes:
+      label: ❓ Problem Statement
+      description: Is your feature request related to a problem? Please describe.
+      placeholder: I'm always frustrated when...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: 💡 Proposed Solution
+      description: Describe the solution you'd like
+      placeholder: I would like...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 🔄 Alternatives Considered
+      description: Describe any alternative solutions or features you've considered
+      placeholder: I also considered...
+      
+  - type: dropdown
+    id: component
+    attributes:
+      label: 🧩 Component
+      description: Which component would this feature affect?
+      options:
+        - Luna AI (Chat)
+        - Image Generation (/imagine)
+        - OCR (/ocr)
+        - Translation (/translate)
+        - Ticket System
+        - Logging System
+        - Configuration (/config)
+        - New Command
+        - Database
+        - UI/Embeds
+        - Performance
+        - Security
+        - Documentation
+        - Other
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 🎯 Priority
+      description: How important is this feature to you?
+      options:
+        - Low - Nice to have
+        - Medium - Would be helpful
+        - High - Important for my use case
+        - Critical - Blocking my usage
+    validations:
+      required: true
+      
+  - type: checkboxes
+    id: implementation
+    attributes:
+      label: 🛠️ Implementation
+      description: Are you willing to help implement this feature?
+      options:
+        - label: I can help with design/planning
+        - label: I can help with implementation
+        - label: I can help with testing
+        - label: I can help with documentation
+        
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 📝 Additional Context
+      description: Add any other context, screenshots, or examples about the feature request here.
+      placeholder: Any additional information...
+      
+  - type: textarea
+    id: mockup
+    attributes:
+      label: 🎨 Mockup/Example
+      description: If applicable, add mockups, examples, or screenshots to help explain your feature
+      placeholder: You can paste images or describe the UI/behavior...
