@@ -93,6 +93,14 @@ func (h *InteractionHandler) HandleComponentInteraction(s *discordgo.Session, i 
 	// その他
 	case strings.HasPrefix(customID, "ticket_setup_"):
 		h.handleTicketSetupStep(s, i, customID)
+	case strings.HasPrefix(customID, "ticket_close_"):
+		h.handleTicketClose(s, i, customID)
+	case strings.HasPrefix(customID, "ticket_transcript_"):
+		h.handleTicketTranscript(s, i, customID)
+	case strings.HasPrefix(customID, "ticket_close_confirm_"):
+		h.handleTicketCloseConfirm(s, i, customID)
+	case customID == "ticket_close_cancel":
+		h.handleTicketCloseCancel(s, i)
 	}
 }
 
@@ -2029,10 +2037,207 @@ func (h *InteractionHandler) handleTicketCreateModal(s *discordgo.Session, i *di
 	s.ChannelMessageSendComplex(channel.ID, &discordgo.MessageSend{
 		Content: fmt.Sprintf("<@%s> <@&%s>", userID, settings.TicketSupportRoleID),
 		Embeds:  []*discordgo.MessageEmbed{ticketEmbed.Build()},
+		Components: []discordgo.MessageComponent{
+			discordgo.ActionsRow{
+				Components: []discordgo.MessageComponent{
+					discordgo.Button{
+						Label:    "🔒 チケットを閉じる",
+						Style:    discordgo.DangerButton,
+						CustomID: fmt.Sprintf("ticket_close_%s", channel.ID),
+					},
+					discordgo.Button{
+						Label:    "📋 トランスクリプト",
+						Style:    discordgo.SecondaryButton,
+						CustomID: fmt.Sprintf("ticket_transcript_%s", channel.ID),
+					},
+				},
+			},
+		},
 	})
 
 	successContent := fmt.Sprintf("✅ チケット #%s を作成しました！\n📍 チャンネル: <#%s>", ticketNumber, channel.ID)
 	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 		Content: &successContent,
+	})
+}
+
+func (h *InteractionHandler) handleTicketClose(s *discordgo.Session, i *discordgo.InteractionCreate, customID string) {
+	channelID := strings.TrimPrefix(customID, "ticket_close_")
+	guildID := i.GuildID
+	userID := i.Member.User.ID
+
+	// チケット設定を確認
+	settings, err := h.db.GetGuildSettings(guildID)
+	if err != nil || !settings.TicketEnabled {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "❌ チケットシステムが利用できません",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+
+	// 権限チェック（チケット作成者、サポートロール、管理者ロールのみ）
+	member, err := s.GuildMember(guildID, userID)
+	if err != nil {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "❌ 権限の確認に失敗しました",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+
+	// 権限確認
+	hasPermission := false
+	
+	// サポートロールまたは管理者ロールを持っているかチェック
+	for _, roleID := range member.Roles {
+		if roleID == settings.TicketSupportRoleID || roleID == settings.TicketAdminRoleID {
+			hasPermission = true
+			break
+		}
+	}
+
+	// チャンネル名からチケット作成者を確認（簡易版）
+	channel, err := s.Channel(channelID)
+	if err == nil && strings.HasPrefix(channel.Name, "ticket-") {
+		// チャンネルの権限を確認してチケット作成者かどうかを判定
+		for _, overwrite := range channel.PermissionOverwrites {
+			if overwrite.Type == discordgo.PermissionOverwriteTypeMember && overwrite.ID == userID {
+				hasPermission = true
+				break
+			}
+		}
+	}
+
+	if !hasPermission {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "❌ このチケットを閉じる権限がありません",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+
+	// 確認メッセージを表示
+	confirmEmbed := embed.New().
+		SetTitle("🔒 チケットクローズ確認").
+		SetDescription("このチケットを閉じますか？\n\n⚠️ **注意**: チケットを閉じるとチャンネルが削除され、会話履歴は失われます。").
+		SetColor(embed.M3Colors.Warning).
+		AddField("💡 推奨", "重要な情報がある場合は、先に「📋 トランスクリプト」ボタンでログを保存してください。", false)
+
+	components := []discordgo.MessageComponent{
+		discordgo.ActionsRow{
+			Components: []discordgo.MessageComponent{
+				discordgo.Button{
+					Label:    "🔒 チケットを閉じる",
+					Style:    discordgo.DangerButton,
+					CustomID: fmt.Sprintf("ticket_close_confirm_%s", channelID),
+				},
+				discordgo.Button{
+					Label:    "❌ キャンセル",
+					Style:    discordgo.SecondaryButton,
+					CustomID: "ticket_close_cancel",
+				},
+			},
+		},
+	}
+
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Embeds:     []*discordgo.MessageEmbed{confirmEmbed.Build()},
+			Components: components,
+			Flags:      discordgo.MessageFlagsEphemeral,
+		},
+	})
+}
+
+func (h *InteractionHandler) handleTicketTranscript(s *discordgo.Session, i *discordgo.InteractionCreate, customID string) {
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: "🚧 トランスクリプト機能は近日実装予定です！",
+			Flags:   discordgo.MessageFlagsEphemeral,
+		},
+	})
+}
+
+func (h *InteractionHandler) handleTicketCloseConfirm(s *discordgo.Session, i *discordgo.InteractionCreate, customID string) {
+	channelID := strings.TrimPrefix(customID, "ticket_close_confirm_")
+	guildID := i.GuildID
+	userID := i.Member.User.ID
+
+	// 設定を取得
+	settings, err := h.db.GetGuildSettings(guildID)
+	if err != nil {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "❌ 設定の取得に失敗しました",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+
+	// 処理中メッセージ
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: "🔒 チケットを閉じています...",
+			Flags:   discordgo.MessageFlagsEphemeral,
+		},
+	})
+
+	// チャンネル情報を取得
+	channel, err := s.Channel(channelID)
+	if err != nil {
+		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+			Content: func() *string { str := "❌ チャンネル情報の取得に失敗しました"; return &str }(),
+		})
+		return
+	}
+
+	// ログチャンネルに通知（チャンネル削除前）
+	if settings.TicketLogChannelID != "" {
+		closeEmbed := embed.New().
+			SetTitle("🔒 チケットが閉じられました").
+			SetColor(embed.M3Colors.Info).
+			AddField("チャンネル", channel.Name, true).
+			AddField("閉じた人", fmt.Sprintf("<@%s>", userID), true).
+			SetTimestamp()
+
+		s.ChannelMessageSendEmbed(settings.TicketLogChannelID, closeEmbed.Build())
+	}
+
+	// チャンネル削除（少し遅延をおいて実行）
+	go func() {
+		time.Sleep(2 * time.Second)
+		s.ChannelDelete(channelID)
+	}()
+
+	// 成功メッセージ
+	successContent := fmt.Sprintf("✅ チケット「%s」を閉じました", channel.Name)
+	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+		Content: &successContent,
+	})
+}
+
+func (h *InteractionHandler) handleTicketCloseCancel(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseUpdateMessage,
+		Data: &discordgo.InteractionResponseData{
+			Content:    "❌ チケットクローズをキャンセルしました",
+			Embeds:     []*discordgo.MessageEmbed{},
+			Components: []discordgo.MessageComponent{},
+		},
 	})
 }
