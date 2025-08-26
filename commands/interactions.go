@@ -36,6 +36,11 @@ func (h *InteractionHandler) HandleComponentInteraction(s *discordgo.Session, i 
 	log.Printf("HandleComponentInteraction called with customID: %s", customID)
 
 	switch {
+	// War Thunder roulette interactions
+	case strings.HasPrefix(customID, "wt_spin_"):
+		h.handleWarThunderSpin(s, i)
+	case strings.HasPrefix(customID, "wt_config_"):
+		h.handleWarThunderConfig(s, i)
 	// メインメニュー
 	case customID == "config_main_tickets":
 		h.handleTicketSetupStart(s, i)
@@ -2264,6 +2269,53 @@ func (h *InteractionHandler) handleTicketCloseCancel(s *discordgo.Session, i *di
 			Content:    "❌ チケットクローズをキャンセルしました",
 			Embeds:     []*discordgo.MessageEmbed{},
 			Components: []discordgo.MessageComponent{},
+		},
+	})
+}
+
+func (h *InteractionHandler) handleWarThunderSpin(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	// Parse custom ID: "wt_spin_{gamemode}_{minbr}_{maxbr}"
+	parts := strings.Split(i.MessageComponentData().CustomID, "_")
+	if len(parts) < 5 {
+		return
+	}
+
+	gameMode := parts[2]
+	minBRStr := parts[3]
+	maxBRStr := parts[4]
+
+	// Show temporary loading response
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredMessageUpdate,
+	})
+
+	// Simulate command execution
+	ctx := NewContext(s, i)
+	ctx.Args["mode"] = gameMode
+	
+	if minBR, err := strconv.ParseFloat(minBRStr, 64); err == nil {
+		ctx.Args["min_br"] = minBR
+	}
+	
+	if maxBR, err := strconv.ParseFloat(maxBRStr, 64); err == nil {
+		ctx.Args["max_br"] = maxBR
+	}
+
+	// Find the War Thunder command
+	// Note: This is a simplified implementation
+	// In a complete implementation, you'd access the WarThunderService through dependency injection
+	errorMsg := "🎲 もう一度ルーレットを実行するには `/wt` コマンドを使用してください"
+	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+		Content: &errorMsg,
+	})
+}
+
+func (h *InteractionHandler) handleWarThunderConfig(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: "⚙️ War Thunder 設定機能は実装中です。現在は `/wt` コマンドで基本的なルーレットをお楽しみください！",
+			Flags:   discordgo.MessageFlagsEphemeral,
 		},
 	})
 }

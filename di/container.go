@@ -10,8 +10,10 @@ import (
 	"github.com/Sumire-Labs/Luna/bump"
 	"github.com/Sumire-Labs/Luna/commands"
 	"github.com/Sumire-Labs/Luna/config"
+	"github.com/Sumire-Labs/Luna/data"
 	"github.com/Sumire-Labs/Luna/database"
 	"github.com/Sumire-Labs/Luna/logging"
+	"github.com/Sumire-Labs/Luna/services"
 )
 
 type Container struct {
@@ -26,6 +28,7 @@ type Container struct {
 	GeminiStudio     *ai.GeminiStudioService
 	VertexGemini     *ai.VertexGeminiService
 	BumpHandler      *bump.Handler
+	WarThunderService *services.WarThunderService
 }
 
 func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
@@ -97,6 +100,22 @@ func (c *Container) initServices() {
 	c.Bot = bot.New(c.Session, c.Config, c.DatabaseService)
 	c.Logger = logging.NewLogger(c.Session, c.Config, c.DatabaseService)
 	c.BumpHandler = bump.NewHandler(c.Session, c.DatabaseService)
+	c.WarThunderService = services.NewWarThunderService(c.DB)
+	
+	// Initialize War Thunder tables
+	if err := c.WarThunderService.InitializeTables(); err != nil {
+		println("Warning: War Thunder service initialization failed:", err.Error())
+	}
+	
+	// Initialize sample data if needed
+	count, err := c.WarThunderService.GetVehicleCount(nil)
+	if err == nil && count == 0 {
+		if err := data.InitializeSampleData(c.WarThunderService); err != nil {
+			println("Warning: Failed to initialize War Thunder sample data:", err.Error())
+		} else {
+			println("War Thunder sample data initialized successfully")
+		}
+	}
 	
 	// ハンドラーを登録
 	c.Logger.RegisterHandlers()
@@ -165,6 +184,11 @@ func (c *Container) initCommands() {
 	if c.GeminiStudio != nil {
 		c.CommandRegistry.Register(commands.NewOCRCommand(c.GeminiStudio))
 		c.CommandRegistry.Register(commands.NewTranslateCommand(c.GeminiStudio))
+	}
+	
+	// War Thunder コマンドの登録
+	if c.WarThunderService != nil {
+		c.CommandRegistry.Register(commands.NewWarThunderCommand(c.WarThunderService))
 	}
 }
 
