@@ -1,4 +1,4 @@
-# 🌙 Luna - Version 0.1.1
+# 🌙 Luna - Version 0.1.2
 
 <div align="center">
 
