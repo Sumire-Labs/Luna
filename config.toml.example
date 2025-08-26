@@ -1,0 +1,40 @@
+# Luna Discord Bot Configuration
+# このファイルを config.toml にコピーして設定してください
+
+[discord]
+token = "YOUR_DISCORD_BOT_TOKEN"
+app_id = "YOUR_DISCORD_APPLICATION_ID"
+guild_id = ""  # 空の場合はグローバルコマンドを使用
+permissions = 8
+
+[database]
+path = "./data/luna.db"
+max_connections = 10
+
+[bot]
+prefix = "/"
+status_message = ""
+activity_type = 0  # 0: Playing, 1: Streaming, 2: Listening, 3: Watching
+debug = false
+owners = []  # ボット管理者のユーザーID配列
+
+[google_cloud]
+project_id = ""
+location = "us-central1"
+credentials_path = ""  # サービスアカウントキーのパス
+gemini_model = "gemini-2.5-flash-lite"
+imagen_model = "imagen-4.0-fast-generate-preview-06-06"
+use_studio_api = false  # Google AI Studio APIを使用するか
+studio_api_key = ""  # Google AI Studio APIキー
+
+[logging]
+level = "info"  # debug, info, warn, error
+format = "text"  # text, json
+output = "console"  # console, file, both
+
+[features]
+enable_ai = true
+enable_logging = true
+enable_tickets = true
+enable_moderation = false
+enable_music = false
