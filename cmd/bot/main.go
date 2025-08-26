@@ -46,10 +46,6 @@ func main() {
 
 	log.Println("Shutting down Luna Bot...")
 
-	if err := container.CommandRegistry.UnregisterSlashCommands(); err != nil {
-		log.Printf("Failed to unregister slash commands: %v", err)
-	}
-
 	if err := container.Bot.Stop(); err != nil {
 		log.Printf("Failed to stop bot gracefully: %v", err)
 	}
