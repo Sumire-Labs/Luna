@@ -10,6 +10,7 @@ import (
 	"github.com/Sumire-Labs/Luna/config"
 	"github.com/Sumire-Labs/Luna/database"
 	"github.com/Sumire-Labs/Luna/embed"
+	"github.com/Sumire-Labs/Luna/services"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -39,8 +40,6 @@ func (h *InteractionHandler) HandleComponentInteraction(s *discordgo.Session, i 
 	// War Thunder roulette interactions
 	case strings.HasPrefix(customID, "wt_spin_"):
 		h.handleWarThunderSpin(s, i)
-	case strings.HasPrefix(customID, "wt_config_"):
-		h.handleWarThunderConfig(s, i)
 	// メインメニュー
 	case customID == "config_main_tickets":
 		h.handleTicketSetupStart(s, i)
@@ -2280,42 +2279,96 @@ func (h *InteractionHandler) handleWarThunderSpin(s *discordgo.Session, i *disco
 		return
 	}
 
-	gameMode := parts[2]
+	gameModeStr := parts[2]
 	minBRStr := parts[3]
 	maxBRStr := parts[4]
 
-	// Show temporary loading response
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseDeferredMessageUpdate,
-	})
+	minBR, _ := strconv.ParseFloat(minBRStr, 64)
+	maxBR, _ := strconv.ParseFloat(maxBRStr, 64)
 
-	// Simulate command execution
-	ctx := NewContext(s, i)
-	ctx.Args["mode"] = gameMode
+	// Create new service instance for spin
+	wtService := services.NewWarThunderSimpleService()
+	gameMode := services.GameMode(gameModeStr)
 	
-	if minBR, err := strconv.ParseFloat(minBRStr, 64); err == nil {
-		ctx.Args["min_br"] = minBR
+	// Get random BR
+	selectedBR, err := wtService.GetRandomBR(gameMode, minBR, maxBR)
+	if err != nil {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseUpdateMessage,
+			Data: &discordgo.InteractionResponseData{
+				Content: fmt.Sprintf("❌ エラー: %s", err.Error()),
+			},
+		})
+		return
 	}
 	
-	if maxBR, err := strconv.ParseFloat(maxBRStr, 64); err == nil {
-		ctx.Args["max_br"] = maxBR
+	// Create simple result embed with GIF
+	color := 0x4285F4
+	switch gameMode {
+	case services.GameModeAir:
+		color = 0x87CEEB
+	case services.GameModeGround:
+		color = 0x8B4513
+	case services.GameModeNaval:
+		color = 0x1E90FF
 	}
-
-	// Find the War Thunder command
-	// Note: This is a simplified implementation
-	// In a complete implementation, you'd access the WarThunderService through dependency injection
-	errorMsg := "🎲 もう一度ルーレットを実行するには `/wt` コマンドを使用してください"
-	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-		Content: &errorMsg,
-	})
-}
-
-func (h *InteractionHandler) handleWarThunderConfig(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	
+	// Get GIF based on game mode and BR
+	var gifURL string
+	switch gameMode {
+	case services.GameModeAir:
+		if selectedBR >= 10.0 {
+			gifURL = "https://media.giphy.com/media/3oEjI1erPMTMBFmNHi/giphy.gif"
+		} else if selectedBR >= 5.0 {
+			gifURL = "https://media.giphy.com/media/l0HlD7sTICn3X5Jf2/giphy.gif"
+		} else {
+			gifURL = "https://media.giphy.com/media/3o7TKUZfJKUKuSWgZG/giphy.gif"
+		}
+	case services.GameModeGround:
+		if selectedBR >= 8.0 {
+			gifURL = "https://media.giphy.com/media/3o7TKqm1mNujcBPSpy/giphy.gif"
+		} else {
+			gifURL = "https://media.giphy.com/media/xT9IgLbNugVohGx8Bi/giphy.gif"
+		}
+	case services.GameModeNaval:
+		gifURL = "https://media.giphy.com/media/xUOwGi5bbHxbT1XncA/giphy.gif"
+	}
+	
+	resultEmbed := embed.New().
+		SetTitle(fmt.Sprintf("%s War Thunder BR ルーレット", gameMode.Emoji())).
+		SetColor(color).
+		SetDescription(fmt.Sprintf("# **%.1f**", selectedBR))
+	
+	if gifURL != "" {
+		resultEmbed.SetImage(gifURL)
+	}
+	
+	// Add BR range info if custom
+	defaultMin, defaultMax := wtService.GetDefaultBRRange(gameMode)
+	if minBR != defaultMin || maxBR != defaultMax {
+		resultEmbed.SetFooter(fmt.Sprintf("BR範囲: %.1f - %.1f", minBR, maxBR), "")
+	}
+	
+	// Update message with new result and spin again button
+	components := []discordgo.MessageComponent{
+		discordgo.ActionsRow{
+			Components: []discordgo.MessageComponent{
+				discordgo.Button{
+					CustomID: fmt.Sprintf("wt_spin_%s_%.1f_%.1f", gameMode, minBR, maxBR),
+					Label:    "もう一回",
+					Style:    discordgo.PrimaryButton,
+					Emoji:    &discordgo.ComponentEmoji{Name: "🎲"},
+				},
+			},
+		},
+	}
+	
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Type: discordgo.InteractionResponseUpdateMessage,
 		Data: &discordgo.InteractionResponseData{
-			Content: "⚙️ War Thunder 設定機能は実装中です。現在は `/wt` コマンドで基本的なルーレットをお楽しみください！",
-			Flags:   discordgo.MessageFlagsEphemeral,
+			Embeds:     []*discordgo.MessageEmbed{resultEmbed.Build()},
+			Components: components,
 		},
 	})
 }
+
