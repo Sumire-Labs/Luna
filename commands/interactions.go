@@ -158,13 +158,13 @@ func (h *InteractionHandler) handleLoggingSetup(s *discordgo.Session, i *discord
 				discordgo.ActionsRow{
 					Components: []discordgo.MessageComponent{
 						discordgo.TextInput{
-							CustomID:    "log_events",
-							Label:       "ログイベント（カンマ区切り）",
+							CustomID:    "log_description",
+							Label:       "設定内容（自動設定・編集不要）",
 							Style:       discordgo.TextInputParagraph,
-							Placeholder: "基本: message_edit,message_delete,member_join,member_leave\n追加: channel_events,role_events,voice_events,moderation_events,server_events,nickname_changes",
+							Placeholder: "すべてのログイベントが自動で有効になります",
 							Required:    false,
-							MaxLength:   500,
-							Value:       "message_edit,message_delete,member_join,member_leave",
+							MaxLength:   200,
+							Value:       "✅ メッセージ編集/削除 ✅ メンバー参加/退出 ✅ チャンネル/ロールイベント ✅ ボイス/モデレーション ✅ サーバーイベント ✅ ニックネーム変更",
 						},
 					},
 				},
@@ -546,7 +546,7 @@ func (h *InteractionHandler) handleLoggingSetupModal(s *discordgo.Session, i *di
 	data := i.ModalSubmitData()
 	guildID := i.GuildID
 
-	var logChannelID, logEvents string
+	var logChannelID string
 
 	for _, component := range data.Components {
 		for _, comp := range component.(*discordgo.ActionsRow).Components {
@@ -556,8 +556,7 @@ func (h *InteractionHandler) handleLoggingSetupModal(s *discordgo.Session, i *di
 			switch textInput.CustomID {
 			case "log_channel":
 				logChannelID = value
-			case "log_events":
-				logEvents = value
+			// log_description は無視（参考用なので）
 			}
 		}
 	}
@@ -616,48 +615,17 @@ func (h *InteractionHandler) handleLoggingSetupModal(s *discordgo.Session, i *di
 	settings.LoggingEnabled = true
 	settings.LogChannelID = logChannelID
 
-	// イベント設定をパース
-	if logEvents == "" {
-		logEvents = "message_edit,message_delete,member_join,member_leave"
-	}
-
-	eventList := strings.Split(logEvents, ",")
-	settings.LogMessageEdits = false
-	settings.LogMessageDeletes = false
-	settings.LogMemberJoins = false
-	settings.LogMemberLeaves = false
-	settings.LogChannelEvents = false
-	settings.LogRoleEvents = false
-	settings.LogVoiceEvents = false
-	settings.LogModerationEvents = false
-	settings.LogServerEvents = false
-	settings.LogNicknameChanges = false
-
-	for _, event := range eventList {
-		event = strings.TrimSpace(event)
-		switch event {
-		case "message_edit":
-			settings.LogMessageEdits = true
-		case "message_delete":
-			settings.LogMessageDeletes = true
-		case "member_join":
-			settings.LogMemberJoins = true
-		case "member_leave":
-			settings.LogMemberLeaves = true
-		case "channel_events":
-			settings.LogChannelEvents = true
-		case "role_events":
-			settings.LogRoleEvents = true
-		case "voice_events":
-			settings.LogVoiceEvents = true
-		case "moderation_events":
-			settings.LogModerationEvents = true
-		case "server_events":
-			settings.LogServerEvents = true
-		case "nickname_changes":
-			settings.LogNicknameChanges = true
-		}
-	}
+	// すべてのログイベントを自動で有効にする
+	settings.LogMessageEdits = true
+	settings.LogMessageDeletes = true
+	settings.LogMemberJoins = true
+	settings.LogMemberLeaves = true
+	settings.LogChannelEvents = true
+	settings.LogRoleEvents = true
+	settings.LogVoiceEvents = true
+	settings.LogModerationEvents = true
+	settings.LogServerEvents = true
+	settings.LogNicknameChanges = true
 
 	// 設定を保存
 	if err := h.db.UpsertGuildSettings(settings); err != nil {
@@ -674,51 +642,21 @@ func (h *InteractionHandler) handleLoggingSetupModal(s *discordgo.Session, i *di
 	// 成功メッセージを作成
 	embedBuilder := embed.New().
 		SetTitle("✅ ログシステム設定完了！").
-		SetDescription("ログシステムが正常に設定されました。").
+		SetDescription("すべてのログイベントが自動で有効になりました。").
 		SetColor(embed.M3Colors.Success).
-		AddField("📍 ログチャンネル", fmt.Sprintf("<#%s>", logChannelID), false)
-
-	var enabledEvents []string
-	if settings.LogMessageEdits {
-		enabledEvents = append(enabledEvents, "• メッセージ編集")
-	}
-	if settings.LogMessageDeletes {
-		enabledEvents = append(enabledEvents, "• メッセージ削除")
-	}
-	if settings.LogMemberJoins {
-		enabledEvents = append(enabledEvents, "• メンバー参加")
-	}
-	if settings.LogMemberLeaves {
-		enabledEvents = append(enabledEvents, "• メンバー退出")
-	}
-	if settings.LogChannelEvents {
-		enabledEvents = append(enabledEvents, "• チャンネルイベント")
-	}
-	if settings.LogRoleEvents {
-		enabledEvents = append(enabledEvents, "• ロールイベント")
-	}
-	if settings.LogVoiceEvents {
-		enabledEvents = append(enabledEvents, "• ボイスチャンネルイベント")
-	}
-	if settings.LogModerationEvents {
-		enabledEvents = append(enabledEvents, "• モデレーションイベント")
-	}
-	if settings.LogServerEvents {
-		enabledEvents = append(enabledEvents, "• サーバーイベント")
-	}
-	if settings.LogNicknameChanges {
-		enabledEvents = append(enabledEvents, "• ニックネーム変更")
-	}
-
-	if len(enabledEvents) > 0 {
-		embedBuilder.AddField("📋 有効なイベント", strings.Join(enabledEvents, "\n"), false)
-	}
-
-	embedBuilder.AddField("💡 次のステップ", strings.Join([]string{
-		"• ログチャンネルでイベントの記録が開始されます",
-		"• `/config` で追加設定や変更が可能です",
-		"• 設定を無効にする場合はリセットを使用してください",
-	}, "\n"), false)
+		AddField("📍 ログチャンネル", fmt.Sprintf("<#%s>", logChannelID), false).
+		AddField("📋 有効なイベント", strings.Join([]string{
+			"✅ メッセージ編集/削除",
+			"✅ メンバー参加/退出", 
+			"✅ チャンネル/ロールイベント",
+			"✅ ボイス/モデレーションイベント",
+			"✅ サーバーイベント/ニックネーム変更",
+		}, "\n"), false).
+		AddField("💡 使用方法", strings.Join([]string{
+			"• 指定したログチャンネルで自動記録開始",
+			"• `/config` でリセットや再設定が可能",
+			"• すべてのサーバーアクティビティを網羅",
+		}, "\n"), false)
 
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
