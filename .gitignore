@@ -14,7 +14,7 @@
 .env.development
 .env.test
 .claude
-.config.toml
+config.toml
 
 ### Google Cloud Credentials ###
 credentials.json
