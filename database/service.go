@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
 )
 
@@ -86,6 +87,12 @@ func (s *Service) Migrate() error {
 			log_message_deletes BOOLEAN DEFAULT TRUE,
 			log_member_joins BOOLEAN DEFAULT TRUE,
 			log_member_leaves BOOLEAN DEFAULT TRUE,
+			log_channel_events BOOLEAN DEFAULT FALSE,
+			log_role_events BOOLEAN DEFAULT FALSE,
+			log_voice_events BOOLEAN DEFAULT FALSE,
+			log_moderation_events BOOLEAN DEFAULT FALSE,
+			log_server_events BOOLEAN DEFAULT FALSE,
+			log_nickname_changes BOOLEAN DEFAULT FALSE,
 			
 			-- Bump Settings
 			bump_enabled BOOLEAN DEFAULT FALSE,
@@ -258,6 +265,12 @@ type GuildSettings struct {
 	LogMessageDeletes   bool `json:"log_message_deletes"`
 	LogMemberJoins      bool `json:"log_member_joins"`
 	LogMemberLeaves     bool `json:"log_member_leaves"`
+	LogChannelEvents    bool `json:"log_channel_events"`
+	LogRoleEvents       bool `json:"log_role_events"`
+	LogVoiceEvents      bool `json:"log_voice_events"`
+	LogModerationEvents bool `json:"log_moderation_events"`
+	LogServerEvents     bool `json:"log_server_events"`
+	LogNicknameChanges  bool `json:"log_nickname_changes"`
 	
 	// Bump Settings
 	BumpEnabled        bool      `json:"bump_enabled"`
@@ -283,7 +296,8 @@ func (s *Service) GetGuildSettings(guildID string) (*GuildSettings, error) {
 			moderation_enabled, moderation_log_channel_id, automod_enabled,
 			welcome_enabled, welcome_channel_id, welcome_message, welcome_role_id,
 			logging_enabled, log_channel_id, log_message_edits, log_message_deletes,
-			log_member_joins, log_member_leaves,
+			log_member_joins, log_member_leaves, log_channel_events, log_role_events,
+			log_voice_events, log_moderation_events, log_server_events, log_nickname_changes,
 			bump_enabled, bump_channel_id, bump_role_id, bump_last_time, bump_reminder_sent,
 			settings_json, created_at, updated_at
 		FROM guild_settings 
@@ -297,7 +311,8 @@ func (s *Service) GetGuildSettings(guildID string) (*GuildSettings, error) {
 		&settings.ModerationEnabled, &settings.ModerationLogChannelID, &settings.AutomodEnabled,
 		&settings.WelcomeEnabled, &settings.WelcomeChannelID, &settings.WelcomeMessage, &settings.WelcomeRoleID,
 		&settings.LoggingEnabled, &settings.LogChannelID, &settings.LogMessageEdits, &settings.LogMessageDeletes,
-		&settings.LogMemberJoins, &settings.LogMemberLeaves,
+		&settings.LogMemberJoins, &settings.LogMemberLeaves, &settings.LogChannelEvents, &settings.LogRoleEvents,
+		&settings.LogVoiceEvents, &settings.LogModerationEvents, &settings.LogServerEvents, &settings.LogNicknameChanges,
 		&settings.BumpEnabled, &settings.BumpChannelID, &settings.BumpRoleID, &settings.BumpLastTime, &settings.BumpReminderSent,
 		&settings.SettingsJSON, &settings.CreatedAt, &settings.UpdatedAt,
 	)
@@ -325,10 +340,11 @@ func (s *Service) UpsertGuildSettings(settings *GuildSettings) error {
 			moderation_enabled, moderation_log_channel_id, automod_enabled,
 			welcome_enabled, welcome_channel_id, welcome_message, welcome_role_id,
 			logging_enabled, log_channel_id, log_message_edits, log_message_deletes,
-			log_member_joins, log_member_leaves,
+			log_member_joins, log_member_leaves, log_channel_events, log_role_events,
+			log_voice_events, log_moderation_events, log_server_events, log_nickname_changes,
 			bump_enabled, bump_channel_id, bump_role_id, bump_last_time, bump_reminder_sent,
 			settings_json
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(guild_id) DO UPDATE SET
 			ticket_enabled = excluded.ticket_enabled,
 			ticket_category_id = excluded.ticket_category_id,
@@ -351,6 +367,12 @@ func (s *Service) UpsertGuildSettings(settings *GuildSettings) error {
 			log_message_deletes = excluded.log_message_deletes,
 			log_member_joins = excluded.log_member_joins,
 			log_member_leaves = excluded.log_member_leaves,
+			log_channel_events = excluded.log_channel_events,
+			log_role_events = excluded.log_role_events,
+			log_voice_events = excluded.log_voice_events,
+			log_moderation_events = excluded.log_moderation_events,
+			log_server_events = excluded.log_server_events,
+			log_nickname_changes = excluded.log_nickname_changes,
 			bump_enabled = excluded.bump_enabled,
 			bump_channel_id = excluded.bump_channel_id,
 			bump_role_id = excluded.bump_role_id,
@@ -360,6 +382,12 @@ func (s *Service) UpsertGuildSettings(settings *GuildSettings) error {
 			updated_at = CURRENT_TIMESTAMP
 	`
 	
+	// Ensure SettingsJSON is not nil
+	settingsJSON := settings.SettingsJSON
+	if settingsJSON == "" {
+		settingsJSON = "{}"
+	}
+
 	_, err := s.db.Exec(query,
 		settings.GuildID, settings.TicketEnabled, settings.TicketCategoryID, settings.TicketSupportRoleID,
 		settings.TicketAdminRoleID, settings.TicketLogChannelID, settings.TicketTranscriptChannelID,
@@ -367,10 +395,16 @@ func (s *Service) UpsertGuildSettings(settings *GuildSettings) error {
 		settings.ModerationEnabled, settings.ModerationLogChannelID, settings.AutomodEnabled,
 		settings.WelcomeEnabled, settings.WelcomeChannelID, settings.WelcomeMessage, settings.WelcomeRoleID,
 		settings.LoggingEnabled, settings.LogChannelID, settings.LogMessageEdits, settings.LogMessageDeletes,
-		settings.LogMemberJoins, settings.LogMemberLeaves,
+		settings.LogMemberJoins, settings.LogMemberLeaves, settings.LogChannelEvents, settings.LogRoleEvents,
+		settings.LogVoiceEvents, settings.LogModerationEvents, settings.LogServerEvents, settings.LogNicknameChanges,
 		settings.BumpEnabled, settings.BumpChannelID, settings.BumpRoleID, settings.BumpLastTime, settings.BumpReminderSent,
-		settings.SettingsJSON,
+		settingsJSON,
 	)
+	
+	if err != nil {
+		log.Printf("Database error in UpsertGuildSettings: %v", err)
+		log.Printf("Guild ID: %s", settings.GuildID)
+	}
 	
 	return err
 }

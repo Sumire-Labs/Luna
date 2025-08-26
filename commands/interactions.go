@@ -5,6 +5,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Sumire-Labs/Luna/config"
 	"github.com/Sumire-Labs/Luna/database"
@@ -53,6 +54,12 @@ func (h *InteractionHandler) HandleComponentInteraction(s *discordgo.Session, i 
 	// チケット設定
 	case customID == "ticket_setup_start":
 		h.handleTicketSetupStart(s, i)
+	case customID == "ticket_setup_panel":
+		h.handleTicketPanelSetup(s, i)
+	case customID == "ticket_setup_done":
+		h.handleTicketSetupDone(s, i)
+	case customID == "ticket_create":
+		h.handleTicketCreate(s, i)
 	case customID == "setup_cancel":
 		h.handleSetupCancel(s, i)
 
@@ -134,7 +141,7 @@ func (h *InteractionHandler) handleLoggingSetup(s *discordgo.Session, i *discord
 							CustomID:    "log_events",
 							Label:       "ログイベント（カンマ区切り）",
 							Style:       discordgo.TextInputParagraph,
-							Placeholder: "message_edit,message_delete,member_join,member_leave,channel,role,moderation",
+							Placeholder: "基本: message_edit,message_delete,member_join,member_leave\n追加: channel_events,role_events,voice_events,moderation_events,server_events,nickname_changes",
 							Required:    false,
 							MaxLength:   500,
 							Value:       "message_edit,message_delete,member_join,member_leave",
@@ -335,6 +342,8 @@ func (h *InteractionHandler) HandleModalSubmit(s *discordgo.Session, i *discordg
 	switch {
 	case data.CustomID == "ticket_setup_modal":
 		h.handleTicketSetupModal(s, i)
+	case data.CustomID == "ticket_create_modal":
+		h.handleTicketCreateModal(s, i)
 	case data.CustomID == "logging_setup_modal":
 		h.handleLoggingSetupModal(s, i)
 	case data.CustomID == "embed_create_modal":
@@ -463,17 +472,31 @@ func (h *InteractionHandler) handleTicketSetupModal(s *discordgo.Session, i *dis
 	}
 
 	embedBuilder.AddField("⏰ 自動クローズ", fmt.Sprintf("%d時間", autoCloseHours), true)
-	embedBuilder.AddField("💡 次のステップ", strings.Join([]string{
-		"• `/ticket create` でチケット作成メッセージを作成",
-		"• 実際にチケットを作成してシステムをテスト",
-		"• 必要に応じて `/config` で追加設定を行う",
-	}, "\n"), false)
+
+	// チケットパネル設置ボタンを追加
+	components := []discordgo.MessageComponent{
+		discordgo.ActionsRow{
+			Components: []discordgo.MessageComponent{
+				discordgo.Button{
+					Label:    "🎫 チケットパネルを設置",
+					Style:    discordgo.PrimaryButton,
+					CustomID: "ticket_setup_panel",
+				},
+				discordgo.Button{
+					Label:    "✅ 完了",
+					Style:    discordgo.SecondaryButton,
+					CustomID: "ticket_setup_done",
+				},
+			},
+		},
+	}
 
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Embeds: []*discordgo.MessageEmbed{embedBuilder.Build()},
-			Flags:  discordgo.MessageFlagsEphemeral,
+			Embeds:     []*discordgo.MessageEmbed{embedBuilder.Build()},
+			Components: components,
+			Flags:      discordgo.MessageFlagsEphemeral,
 		},
 	})
 }
@@ -556,6 +579,12 @@ func (h *InteractionHandler) handleLoggingSetupModal(s *discordgo.Session, i *di
 	settings.LogMessageDeletes = false
 	settings.LogMemberJoins = false
 	settings.LogMemberLeaves = false
+	settings.LogChannelEvents = false
+	settings.LogRoleEvents = false
+	settings.LogVoiceEvents = false
+	settings.LogModerationEvents = false
+	settings.LogServerEvents = false
+	settings.LogNicknameChanges = false
 
 	for _, event := range eventList {
 		event = strings.TrimSpace(event)
@@ -568,6 +597,18 @@ func (h *InteractionHandler) handleLoggingSetupModal(s *discordgo.Session, i *di
 			settings.LogMemberJoins = true
 		case "member_leave":
 			settings.LogMemberLeaves = true
+		case "channel_events":
+			settings.LogChannelEvents = true
+		case "role_events":
+			settings.LogRoleEvents = true
+		case "voice_events":
+			settings.LogVoiceEvents = true
+		case "moderation_events":
+			settings.LogModerationEvents = true
+		case "server_events":
+			settings.LogServerEvents = true
+		case "nickname_changes":
+			settings.LogNicknameChanges = true
 		}
 	}
 
@@ -602,6 +643,24 @@ func (h *InteractionHandler) handleLoggingSetupModal(s *discordgo.Session, i *di
 	}
 	if settings.LogMemberLeaves {
 		enabledEvents = append(enabledEvents, "• メンバー退出")
+	}
+	if settings.LogChannelEvents {
+		enabledEvents = append(enabledEvents, "• チャンネルイベント")
+	}
+	if settings.LogRoleEvents {
+		enabledEvents = append(enabledEvents, "• ロールイベント")
+	}
+	if settings.LogVoiceEvents {
+		enabledEvents = append(enabledEvents, "• ボイスチャンネルイベント")
+	}
+	if settings.LogModerationEvents {
+		enabledEvents = append(enabledEvents, "• モデレーションイベント")
+	}
+	if settings.LogServerEvents {
+		enabledEvents = append(enabledEvents, "• サーバーイベント")
+	}
+	if settings.LogNicknameChanges {
+		enabledEvents = append(enabledEvents, "• ニックネーム変更")
 	}
 
 	if len(enabledEvents) > 0 {
@@ -1709,5 +1768,271 @@ func (h *InteractionHandler) handleBumpSettingsSubmit(s *discordgo.Session, i *d
 			Embeds: []*discordgo.MessageEmbed{embedBuilder.Build()},
 			Flags:  discordgo.MessageFlagsEphemeral,
 		},
+	})
+}
+
+func (h *InteractionHandler) handleTicketPanelSetup(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	guildID := i.GuildID
+	channelID := i.ChannelID
+
+	// チケット設定を確認
+	settings, err := h.db.GetGuildSettings(guildID)
+	if err != nil || !settings.TicketEnabled {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "❌ チケットシステムが設定されていません！先に設定を完了してください。",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+
+	// チケット作成パネルを作成
+	panelEmbed := embed.New().
+		SetTitle("🎫 サポートチケット").
+		SetDescription("サポートが必要な場合は、下のボタンをクリックしてチケットを作成してください。").
+		SetColor(embed.M3Colors.Primary).
+		AddField("📋 利用方法", strings.Join([]string{
+			"1. 「📧 チケット作成」ボタンをクリック",
+			"2. カテゴリを選択してチケットを作成",
+			"3. 専用チャンネルでサポートを受ける",
+		}, "\n"), false).
+		AddField("⚠️ 注意事項", strings.Join([]string{
+			"• 同時に作成できるチケットは3つまでです",
+			fmt.Sprintf("• %d時間非アクティブの場合、自動でクローズされます", settings.TicketAutoCloseHours),
+			"• 不適切な使用は禁止されています",
+		}, "\n"), false)
+
+	components := []discordgo.MessageComponent{
+		discordgo.ActionsRow{
+			Components: []discordgo.MessageComponent{
+				discordgo.Button{
+					Label:    "📧 チケット作成",
+					Style:    discordgo.PrimaryButton,
+					CustomID: "ticket_create",
+				},
+			},
+		},
+	}
+
+	// パネルを現在のチャンネルに投稿
+	_, err = s.ChannelMessageSendComplex(channelID, &discordgo.MessageSend{
+		Embeds:     []*discordgo.MessageEmbed{panelEmbed.Build()},
+		Components: components,
+	})
+
+	if err != nil {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: fmt.Sprintf("❌ チケットパネルの作成に失敗しました: %v", err),
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+
+	// 成功メッセージ
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: "✅ チケットパネルを作成しました！ユーザーはボタンをクリックしてチケットを作成できます。",
+			Flags:   discordgo.MessageFlagsEphemeral,
+		},
+	})
+}
+
+func (h *InteractionHandler) handleTicketSetupDone(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseUpdateMessage,
+		Data: &discordgo.InteractionResponseData{
+			Content:    "✅ チケットシステム設定が完了しました！",
+			Embeds:     []*discordgo.MessageEmbed{},
+			Components: []discordgo.MessageComponent{},
+		},
+	})
+}
+
+func (h *InteractionHandler) handleTicketCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	guildID := i.GuildID
+
+	// チケット設定を確認
+	settings, err := h.db.GetGuildSettings(guildID)
+	if err != nil || !settings.TicketEnabled {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "❌ チケットシステムが設定されていません！",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+
+	// モーダルでチケットの詳細を入力
+	modal := discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseModal,
+		Data: &discordgo.InteractionResponseData{
+			CustomID: "ticket_create_modal",
+			Title:    "🎫 チケット作成",
+			Components: []discordgo.MessageComponent{
+				discordgo.ActionsRow{
+					Components: []discordgo.MessageComponent{
+						discordgo.TextInput{
+							CustomID:    "ticket_subject",
+							Label:       "件名",
+							Style:       discordgo.TextInputShort,
+							Placeholder: "問題の概要を簡潔に入力してください",
+							Required:    true,
+							MaxLength:   100,
+						},
+					},
+				},
+				discordgo.ActionsRow{
+					Components: []discordgo.MessageComponent{
+						discordgo.TextInput{
+							CustomID:    "ticket_description",
+							Label:       "詳細説明",
+							Style:       discordgo.TextInputParagraph,
+							Placeholder: "問題の詳細、発生状況、求める解決策などを詳しく説明してください",
+							Required:    true,
+							MaxLength:   1000,
+						},
+					},
+				},
+				discordgo.ActionsRow{
+					Components: []discordgo.MessageComponent{
+						discordgo.TextInput{
+							CustomID:    "ticket_priority",
+							Label:       "優先度 (low/medium/high/urgent)",
+							Style:       discordgo.TextInputShort,
+							Placeholder: "low, medium, high, urgent のいずれかを入力",
+							Required:    false,
+							MaxLength:   10,
+							Value:       "medium",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	s.InteractionRespond(i.Interaction, &modal)
+}
+
+func (h *InteractionHandler) handleTicketCreateModal(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	data := i.ModalSubmitData()
+	guildID := i.GuildID
+	userID := i.Member.User.ID
+
+	var subject, description, priority string
+	for _, component := range data.Components {
+		for _, comp := range component.(*discordgo.ActionsRow).Components {
+			textInput := comp.(*discordgo.TextInput)
+			switch textInput.CustomID {
+			case "ticket_subject":
+				subject = textInput.Value
+			case "ticket_description":
+				description = textInput.Value
+			case "ticket_priority":
+				priority = textInput.Value
+			}
+		}
+	}
+
+	if priority == "" {
+		priority = "medium"
+	}
+
+	settings, err := h.db.GetGuildSettings(guildID)
+	if err != nil || !settings.TicketEnabled {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "❌ チケットシステムが利用できません",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
+
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: "🎫 チケットを作成中です...",
+			Flags:   discordgo.MessageFlagsEphemeral,
+		},
+	})
+
+	ticketNumber := fmt.Sprintf("%d", time.Now().Unix()%10000)
+	channelName := fmt.Sprintf("ticket-%s", ticketNumber)
+	
+	channel, err := s.GuildChannelCreateComplex(guildID, discordgo.GuildChannelCreateData{
+		Name:     channelName,
+		Type:     discordgo.ChannelTypeGuildText,
+		ParentID: settings.TicketCategoryID,
+		PermissionOverwrites: []*discordgo.PermissionOverwrite{
+			{
+				ID:   guildID,
+				Type: discordgo.PermissionOverwriteTypeRole,
+				Deny: discordgo.PermissionViewChannel,
+			},
+			{
+				ID:    userID,
+				Type:  discordgo.PermissionOverwriteTypeMember,
+				Allow: discordgo.PermissionViewChannel | discordgo.PermissionSendMessages | discordgo.PermissionReadMessageHistory,
+			},
+			{
+				ID:    settings.TicketSupportRoleID,
+				Type:  discordgo.PermissionOverwriteTypeRole,
+				Allow: discordgo.PermissionViewChannel | discordgo.PermissionSendMessages | discordgo.PermissionReadMessageHistory | discordgo.PermissionManageMessages,
+			},
+		},
+	})
+
+	if err != nil {
+		content := fmt.Sprintf("❌ チケットチャンネルの作成に失敗しました: %v", err)
+		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+			Content: &content,
+		})
+		return
+	}
+
+	if settings.TicketAdminRoleID != "" {
+		s.ChannelPermissionSet(channel.ID, settings.TicketAdminRoleID, discordgo.PermissionOverwriteTypeRole,
+			discordgo.PermissionViewChannel|discordgo.PermissionSendMessages|discordgo.PermissionReadMessageHistory|discordgo.PermissionManageMessages|discordgo.PermissionManageChannels,
+			0)
+	}
+
+	priorityEmoji := map[string]string{
+		"low":    "🟢",
+		"medium": "🟡", 
+		"high":   "🟠",
+		"urgent": "🔴",
+	}
+	emoji := priorityEmoji[priority]
+	if emoji == "" {
+		emoji = "🟡"
+	}
+
+	ticketEmbed := embed.New().
+		SetTitle(fmt.Sprintf("🎫 チケット #%s", ticketNumber)).
+		SetDescription(fmt.Sprintf("**件名:** %s", subject)).
+		SetColor(embed.M3Colors.Primary).
+		AddField("📝 詳細", description, false).
+		AddField("⚡ 優先度", fmt.Sprintf("%s %s", emoji, strings.ToUpper(priority)), true).
+		AddField("👤 作成者", fmt.Sprintf("<@%s>", userID), true).
+		SetFooter("サポートスタッフが対応いたします", "").
+		SetTimestamp()
+
+	s.ChannelMessageSendComplex(channel.ID, &discordgo.MessageSend{
+		Content: fmt.Sprintf("<@%s> <@&%s>", userID, settings.TicketSupportRoleID),
+		Embeds:  []*discordgo.MessageEmbed{ticketEmbed.Build()},
+	})
+
+	successContent := fmt.Sprintf("✅ チケット #%s を作成しました！\n📍 チャンネル: <#%s>", ticketNumber, channel.ID)
+	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+		Content: &successContent,
 	})
 }
