@@ -40,7 +40,7 @@ func (c *AICommand) Name() string {
 }
 
 func (c *AICommand) Description() string {
-	return "Gemini AIに質問して回答を得ます"
+	return "Luna AIに質問して回答を得ます"
 }
 
 func (c *AICommand) Usage() string {
@@ -52,7 +52,7 @@ func (c *AICommand) Category() string {
 }
 
 func (c *AICommand) Aliases() []string {
-	return []string{"質問", "gemini"}
+	return []string{"質問", "luna"}
 }
 
 func (c *AICommand) Permission() int64 {
@@ -64,7 +64,7 @@ func (c *AICommand) Options() []*discordgo.ApplicationCommandOption {
 		{
 			Type:        discordgo.ApplicationCommandOptionString,
 			Name:        "question",
-			Description: "AIに聞きたい質問",
+			Description: "Luna AIに聞きたい質問",
 			Required:    true,
 		},
 	}
@@ -121,11 +121,11 @@ func (c *AICommand) Execute(ctx *Context) error {
 	
 	// 成功応答
 	responseEmbed := embed.New().
-		SetTitle("🤖 Gemini AI の回答").
+		SetTitle("🌙 Luna AI の回答").
 		SetColor(embed.M3Colors.Primary).
 		AddField("💬 質問", question, false).
 		AddField("📝 回答", answer, false).
-		SetFooter(fmt.Sprintf("回答者: %s • Model: Gemini 2.5 Pro", ctx.GetUser().Username), ctx.GetUser().AvatarURL(""))
+		SetFooter(fmt.Sprintf("回答者: %s • Powered by Luna AI", ctx.GetUser().Username), ctx.GetUser().AvatarURL(""))
 	
 	return ctx.EditReplyEmbed(responseEmbed.Build())
 }

@@ -26,7 +26,7 @@ func (c *OCRCommand) Name() string {
 }
 
 func (c *OCRCommand) Description() string {
-	return "Gemini 2.5を使って画像からテキストを抽出・分析します"
+	return "Luna AIを使って画像からテキストを抽出・分析します"
 }
 
 func (c *OCRCommand) Usage() string {
