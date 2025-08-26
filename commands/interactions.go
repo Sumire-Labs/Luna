@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 
@@ -428,12 +429,15 @@ func (h *InteractionHandler) handleTicketSetupModal(s *discordgo.Session, i *dis
 	settings.TicketLogChannelID = logChannelID
 	settings.TicketAutoCloseHours = autoCloseHours
 
+	// Debug log
+	log.Printf("Saving ticket settings for guild %s: %+v", guildID, settings)
+
 	// Save settings
 	if err := h.db.UpsertGuildSettings(settings); err != nil {
 		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseChannelMessageWithSource,
 			Data: &discordgo.InteractionResponseData{
-				Content: "❌ 設定の保存に失敗しました！",
+				Content: fmt.Sprintf("❌ 設定の保存に失敗しました！エラー: %v", err),
 				Flags:   discordgo.MessageFlagsEphemeral,
 			},
 		})
