@@ -24,6 +24,7 @@ type Container struct {
 	Logger           *logging.Logger
 	AIService        *ai.Service
 	GeminiStudio     *ai.GeminiStudioService
+	VertexGemini     *ai.VertexGeminiService
 	BumpHandler      *bump.Handler
 }
 
@@ -49,9 +50,13 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 			println("Warning: Gemini Studio service initialization failed:", err.Error())
 		}
 	} else if cfg.GoogleCloud.ProjectID != "" {
-		// Vertex AI を使用
-		if err := container.initAIService(); err != nil {
-			println("Warning: Vertex AI service initialization failed:", err.Error())
+		// 新しいVertex AI Gemini APIを使用
+		if err := container.initVertexGemini(); err != nil {
+			println("Warning: Vertex AI Gemini service initialization failed:", err.Error())
+			// フォールバックとして旧APIを試す
+			if err := container.initAIService(); err != nil {
+				println("Warning: Vertex AI service initialization also failed:", err.Error())
+			}
 		}
 	}
 	
@@ -119,6 +124,15 @@ func (c *Container) initGeminiStudio() error {
 	return nil
 }
 
+func (c *Container) initVertexGemini() error {
+	vertexGemini, err := ai.NewVertexGeminiService(&c.Config.GoogleCloud)
+	if err != nil {
+		return err
+	}
+	c.VertexGemini = vertexGemini
+	return nil
+}
+
 func (c *Container) initCommands() {
 	c.CommandRegistry = commands.NewRegistry(c.Session, c.Config, c.DatabaseService)
 	
@@ -131,8 +145,15 @@ func (c *Container) initCommands() {
 	c.CommandRegistry.Register(commands.NewPurgeCommand())
 	
 	// AI コマンドの登録
-	if c.AIService != nil {
-		// Vertex AI使用時
+	if c.VertexGemini != nil {
+		// 新しいVertex AI Gemini API使用時
+		c.CommandRegistry.Register(commands.NewAICommandWithVertex(c.VertexGemini))
+		// Imagenコマンドは旧APIが必要
+		if c.AIService != nil {
+			c.CommandRegistry.Register(commands.NewImageCommand(c.AIService))
+		}
+	} else if c.AIService != nil {
+		// 旧Vertex AI使用時
 		c.CommandRegistry.Register(commands.NewAICommand(c.AIService))
 		c.CommandRegistry.Register(commands.NewImageCommand(c.AIService))
 	} else if c.GeminiStudio != nil {
@@ -158,6 +179,10 @@ func (c *Container) Cleanup() error {
 	
 	if c.AIService != nil {
 		c.AIService.Close()
+	}
+	
+	if c.VertexGemini != nil {
+		c.VertexGemini.Close()
 	}
 
 	return nil

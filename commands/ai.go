@@ -12,8 +12,9 @@ import (
 )
 
 type AICommand struct {
-	aiService    *ai.Service
-	geminiStudio *ai.GeminiStudioService
+	aiService      *ai.Service
+	geminiStudio   *ai.GeminiStudioService
+	vertexGemini   *ai.VertexGeminiService
 }
 
 func NewAICommand(aiService *ai.Service) *AICommand {
@@ -25,6 +26,12 @@ func NewAICommand(aiService *ai.Service) *AICommand {
 func NewAICommandWithStudio(geminiStudio *ai.GeminiStudioService) *AICommand {
 	return &AICommand{
 		geminiStudio: geminiStudio,
+	}
+}
+
+func NewAICommandWithVertex(vertexGemini *ai.VertexGeminiService) *AICommand {
+	return &AICommand{
+		vertexGemini: vertexGemini,
 	}
 }
 
@@ -72,7 +79,7 @@ func (c *AICommand) Execute(ctx *Context) error {
 	}
 	
 	// AIサービスが利用可能かチェック
-	if c.aiService == nil && c.geminiStudio == nil {
+	if c.aiService == nil && c.geminiStudio == nil && c.vertexGemini == nil {
 		return ctx.ReplyEphemeral("❌ AI機能は現在利用できません（設定を確認してください）")
 	}
 	
@@ -86,10 +93,15 @@ func (c *AICommand) Execute(ctx *Context) error {
 	var answer string
 	var err error
 	
-	// Gemini Studio APIを優先して使用
-	if c.geminiStudio != nil {
+	// 利用可能なサービスの優先順位で実行
+	if c.vertexGemini != nil {
+		// 新しいVertex AI Gemini APIを優先
+		answer, err = c.vertexGemini.AskGemini(aiCtx, question, ctx.GetUser().ID)
+	} else if c.geminiStudio != nil {
+		// Google AI Studio API
 		answer, err = c.geminiStudio.AskGemini(aiCtx, question, ctx.GetUser().ID)
 	} else {
+		// 旧Vertex AI Predict API（非推奨）
 		answer, err = c.aiService.AskGemini(aiCtx, question, ctx.GetUser().ID)
 	}
 	if err != nil {
