@@ -435,6 +435,16 @@ func (h *InteractionHandler) handleTicketSetupModal(s *discordgo.Session, i *dis
 			GuildID:              guildID,
 			TicketAutoCloseHours: 24,
 			TicketMaxPerUser:     3,
+			LogMessageEdits:      true,
+			LogMessageDeletes:    true,
+			LogMemberJoins:       true,
+			LogMemberLeaves:     true,
+			LogChannelEvents:     false,
+			LogRoleEvents:        false,
+			LogVoiceEvents:       false,
+			LogModerationEvents:  false,
+			LogServerEvents:      false,
+			LogNicknameChanges:   false,
 		}
 	}
 
@@ -565,11 +575,17 @@ func (h *InteractionHandler) handleLoggingSetupModal(s *discordgo.Session, i *di
 	if err != nil {
 		// エラーでもデフォルト設定を作成
 		settings = &database.GuildSettings{
-			GuildID:           guildID,
-			LogMessageEdits:   true,
-			LogMessageDeletes: true,
-			LogMemberJoins:    true,
-			LogMemberLeaves:   true,
+			GuildID:              guildID,
+			LogMessageEdits:      true,
+			LogMessageDeletes:    true,
+			LogMemberJoins:       true,
+			LogMemberLeaves:      true,
+			LogChannelEvents:     false,
+			LogRoleEvents:        false,
+			LogVoiceEvents:       false,
+			LogModerationEvents:  false,
+			LogServerEvents:      false,
+			LogNicknameChanges:   false,
 		}
 	}
 
@@ -1721,7 +1737,19 @@ func (h *InteractionHandler) handleBumpSettingsSubmit(s *discordgo.Session, i *d
 	if err != nil {
 		// エラーでもデフォルト設定を作成
 		settings = &database.GuildSettings{
-			GuildID: guildID,
+			GuildID:              guildID,
+			TicketAutoCloseHours: 24,
+			TicketMaxPerUser:     3,
+			LogMessageEdits:      true,
+			LogMessageDeletes:    true,
+			LogMemberJoins:       true,
+			LogMemberLeaves:      true,
+			LogChannelEvents:     false,
+			LogRoleEvents:        false,
+			LogVoiceEvents:       false,
+			LogModerationEvents:  false,
+			LogServerEvents:      false,
+			LogNicknameChanges:   false,
 		}
 	}
 	
