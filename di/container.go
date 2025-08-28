@@ -148,14 +148,23 @@ func (c *Container) initCommands() {
 	if c.VertexGemini != nil {
 		// 新しいVertex AI Gemini API使用時
 		c.CommandRegistry.Register(commands.NewAICommandWithVertex(c.VertexGemini))
-		// Imagenコマンドは旧APIが必要
+		// Imagenコマンドは旧APIが必要、GeminiStudioが使える場合は日本語翻訳対応
 		if c.AIService != nil {
-			c.CommandRegistry.Register(commands.NewImageCommand(c.AIService))
+			if c.GeminiStudio != nil {
+				c.CommandRegistry.Register(commands.NewImageCommandWithGemini(c.AIService, c.GeminiStudio))
+			} else {
+				c.CommandRegistry.Register(commands.NewImageCommand(c.AIService))
+			}
 		}
 	} else if c.AIService != nil {
 		// 旧Vertex AI使用時
 		c.CommandRegistry.Register(commands.NewAICommand(c.AIService))
-		c.CommandRegistry.Register(commands.NewImageCommand(c.AIService))
+		// GeminiStudioが使える場合は日本語翻訳対応のImageCommand
+		if c.GeminiStudio != nil {
+			c.CommandRegistry.Register(commands.NewImageCommandWithGemini(c.AIService, c.GeminiStudio))
+		} else {
+			c.CommandRegistry.Register(commands.NewImageCommand(c.AIService))
+		}
 	} else if c.GeminiStudio != nil {
 		// Google AI Studio使用時（askコマンドのみ、imageは非対応）
 		c.CommandRegistry.Register(commands.NewAICommandWithStudio(c.GeminiStudio))
