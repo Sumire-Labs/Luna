@@ -24,7 +24,7 @@ func (cmd *BracketsCommand) Name() string {
 }
 
 func (cmd *BracketsCommand) Description() string {
-	return "かっこ使用量ランキングを表示"
+	return "かっこペア使用量ランキングを表示"
 }
 
 func (cmd *BracketsCommand) Usage() string {
@@ -80,16 +80,16 @@ func (cmd *BracketsCommand) showRanking(ctx *Context, guildID string) error {
 	if len(rankings) == 0 {
 		return ctx.ReplyEmbed(
 			embed.New().
-				SetTitle("📊 かっこ使用量ランキング").
+				SetTitle("📊 かっこペア使用量ランキング").
 				SetColor(0xFF6B6B).
-				SetDescription("まだデータがありません。\nメッセージにかっこを使ってみましょう！").
+				SetDescription("まだデータがありません。\nメッセージに完全なかっこペア () （） を使ってみましょう！").
 				Build(),
 		)
 	}
 
 	// Build ranking embed
 	embedBuilder := embed.New().
-		SetTitle("📊 かっこ使用量ランキング TOP10").
+		SetTitle("📊 かっこペア使用量ランキング TOP10").
 		SetColor(0x4285F4).
 		SetThumbnail("https://cdn.discordapp.com/attachments/123/456/brackets_icon.png")
 
@@ -112,22 +112,12 @@ func (cmd *BracketsCommand) showRanking(ctx *Context, guildID string) error {
 			medal = fmt.Sprintf("%d.", i+1)
 		}
 
-		// Format stats
-		balance := stats.OpenBrackets - stats.CloseBrackets
-		balanceStr := ""
-		if balance > 0 {
-			balanceStr = fmt.Sprintf(" ⚠️ (+%d)", balance)
-		} else if balance < 0 {
-			balanceStr = fmt.Sprintf(" ⚠️ (%d)", balance)
-		} else {
-			balanceStr = " ✅"
-		}
-
+		// Format stats - show half-width and full-width pairs separately
 		description.WriteString(fmt.Sprintf(
-			"%s **%s**\n   ( %d回  ) %d回  計: **%d回**%s\n\n",
+			"%s **%s**\n   () %d回  （） %d回  合計: **%d回**\n\n",
 			medal, username,
-			stats.OpenBrackets, stats.CloseBrackets,
-			stats.TotalBrackets, balanceStr,
+			stats.HalfWidthPairs, stats.FullWidthPairs,
+			stats.TotalPairs,
 		))
 	}
 
@@ -137,7 +127,7 @@ func (cmd *BracketsCommand) showRanking(ctx *Context, guildID string) error {
 	requestingUserID := ctx.GetUser().ID
 	userStats, _ := cmd.db.GetUserBracketStats(guildID, requestingUserID)
 	
-	if userStats != nil && userStats.TotalBrackets > 0 {
+	if userStats != nil && userStats.TotalPairs > 0 {
 		// Find user's rank
 		userRank := 0
 		for i, stats := range rankings {
@@ -161,9 +151,9 @@ func (cmd *BracketsCommand) showRanking(ctx *Context, guildID string) error {
 		if userRank > 10 {
 			embedBuilder.AddField(
 				"📍 あなたの順位",
-				fmt.Sprintf("**%d位** - 合計 %d回 ( %d回 ) %d回",
-					userRank, userStats.TotalBrackets,
-					userStats.OpenBrackets, userStats.CloseBrackets),
+				fmt.Sprintf("**%d位** - 合計 %d回 () %d回 （） %d回",
+					userRank, userStats.TotalPairs,
+					userStats.HalfWidthPairs, userStats.FullWidthPairs),
 				false,
 			)
 		}
@@ -180,29 +170,19 @@ func (cmd *BracketsCommand) showUserStats(ctx *Context, guildID string, user *di
 		return ctx.ReplyEphemeral("❌ ユーザー統計の取得に失敗しました")
 	}
 
-	if stats.TotalBrackets == 0 {
+	if stats.TotalPairs == 0 {
 		return ctx.ReplyEmbed(
 			embed.New().
-				SetTitle(fmt.Sprintf("📊 %s のかっこ統計", user.Username)).
+				SetTitle(fmt.Sprintf("📊 %s のかっこペア統計", user.Username)).
 				SetColor(0xFF6B6B).
-				SetDescription("まだデータがありません").
+				SetDescription("まだデータがありません\n完全なかっこペア () （） を使ってみましょう！").
 				SetThumbnail(user.AvatarURL("256")).
 				Build(),
 		)
 	}
 
-	// Calculate balance and ratio
-	balance := stats.OpenBrackets - stats.CloseBrackets
-	balanceStatus := "✅ 完璧なバランス！"
-	balanceColor := 0x4CAF50 // Green
-	
-	if balance > 0 {
-		balanceStatus = fmt.Sprintf("⚠️ 開きかっこが %d 個多い", balance)
-		balanceColor = 0xFFC107 // Amber
-	} else if balance < 0 {
-		balanceStatus = fmt.Sprintf("⚠️ 閉じかっこが %d 個多い", -balance)
-		balanceColor = 0xFF9800 // Orange
-	}
+	// Since we only count complete pairs, there's no imbalance issue
+	balanceColor := 0x4CAF50 // Green - always balanced
 
 	// Get user's rank
 	rankings, _ := cmd.db.GetBracketRanking(guildID, 999)
@@ -216,41 +196,55 @@ func (cmd *BracketsCommand) showUserStats(ctx *Context, guildID string, user *di
 
 	// Build stats embed
 	embedBuilder := embed.New().
-		SetTitle(fmt.Sprintf("📊 %s のかっこ統計", user.Username)).
+		SetTitle(fmt.Sprintf("📊 %s のかっこペア統計", user.Username)).
 		SetColor(balanceColor).
 		SetThumbnail(user.AvatarURL("256"))
 
 	// Add fields
 	embedBuilder.
 		AddField("🏆 順位", fmt.Sprintf("**%d位** / %d人中", userRank, len(rankings)), true).
-		AddField("📈 合計使用回数", fmt.Sprintf("**%d回**", stats.TotalBrackets), true).
-		AddField("⚖️ バランス", balanceStatus, false)
+		AddField("📈 合計ペア数", fmt.Sprintf("**%d回**", stats.TotalPairs), true).
+		AddField("✅ 状態", "完全ペア（バランス完璧！）", false)
 
 	// Add detailed stats
 	embedBuilder.AddField(
 		"📊 詳細統計",
-		fmt.Sprintf("開きかっこ `(` `（`: **%d回**\n閉じかっこ `)` `）`: **%d回**",
-			stats.OpenBrackets, stats.CloseBrackets),
+		fmt.Sprintf("半角かっこペア `()`: **%d回**\n全角かっこペア `（）`: **%d回**",
+			stats.HalfWidthPairs, stats.FullWidthPairs),
 		false,
 	)
 
-	// Add fun facts
-	avgPercentage := 0.0
-	if stats.TotalBrackets > 0 {
-		avgPercentage = float64(stats.OpenBrackets) / float64(stats.TotalBrackets) * 100
+	// Add fun facts based on pair usage
+	halfWidthPercentage := 0.0
+	if stats.TotalPairs > 0 {
+		halfWidthPercentage = float64(stats.HalfWidthPairs) / float64(stats.TotalPairs) * 100
 	}
 	
 	funFact := ""
-	if balance == 0 && stats.TotalBrackets > 100 {
-		funFact = "🎯 100回以上使って完璧なバランス！素晴らしい！"
-	} else if stats.TotalBrackets > 500 {
-		funFact = "🔥 500回以上のかっこ使用！かっこマスター！"
-	} else if stats.TotalBrackets > 100 {
-		funFact = "💪 100回以上のかっこ使用！かなりのヘビーユーザー！"
-	} else if balance > 10 {
-		funFact = "😅 閉じ忘れが多いかも？"
-	} else if balance < -10 {
-		funFact = "🤔 閉じかっこが多すぎるかも？"
+	if stats.TotalPairs > 500 {
+		funFact = "🔥 500ペア以上！かっこペアマスター！"
+	} else if stats.TotalPairs > 100 {
+		funFact = "💪 100ペア以上！かなりのペアユーザー！"
+	} else if stats.TotalPairs > 50 {
+		funFact = "👍 50ペア達成！順調にペアを使っています！"
+	}
+	
+	// Add preference comment
+	if stats.HalfWidthPairs > stats.FullWidthPairs * 2 {
+		if funFact != "" {
+			funFact += "\n"
+		}
+		funFact += "📱 半角かっこ派ですね！"
+	} else if stats.FullWidthPairs > stats.HalfWidthPairs * 2 {
+		if funFact != "" {
+			funFact += "\n"
+		}
+		funFact += "📝 全角かっこ派ですね！"
+	} else if stats.HalfWidthPairs > 0 && stats.FullWidthPairs > 0 {
+		if funFact != "" {
+			funFact += "\n"
+		}
+		funFact += "🎯 両方バランス良く使っています！"
 	}
 
 	if funFact != "" {
@@ -258,7 +252,7 @@ func (cmd *BracketsCommand) showUserStats(ctx *Context, guildID string, user *di
 	}
 
 	embedBuilder.SetFooter(
-		fmt.Sprintf("開きかっこ率: %.1f%%", avgPercentage),
+		fmt.Sprintf("半角かっこ率: %.1f%%", halfWidthPercentage),
 		"",
 	)
 

@@ -146,20 +146,22 @@ func (s *Service) Migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_tickets_creator ON tickets(creator_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)`,
 		`CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket ON ticket_messages(ticket_id)`,
+		// Migration: Drop and recreate bracket_usage table with new structure
+		`DROP TABLE IF EXISTS bracket_usage`,
 		`CREATE TABLE IF NOT EXISTS bracket_usage (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			guild_id TEXT NOT NULL,
 			user_id TEXT NOT NULL,
-			open_brackets INTEGER DEFAULT 0,
-			close_brackets INTEGER DEFAULT 0,
-			total_brackets INTEGER DEFAULT 0,
+			half_width_pairs INTEGER DEFAULT 0,
+			full_width_pairs INTEGER DEFAULT 0,
+			total_pairs INTEGER DEFAULT 0,
 			last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(guild_id, user_id),
 			FOREIGN KEY (guild_id) REFERENCES guilds(id),
 			FOREIGN KEY (user_id) REFERENCES users(id)
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_bracket_usage_guild ON bracket_usage(guild_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_bracket_usage_total ON bracket_usage(total_brackets DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_bracket_usage_guild_new ON bracket_usage(guild_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_bracket_usage_total_new ON bracket_usage(total_pairs DESC)`,
 	}
 
 	for _, migration := range migrations {
@@ -544,28 +546,28 @@ func (s *Service) GetBumpableGuilds() ([]*GuildSettings, error) {
 }
 
 // Bracket usage methods
-func (s *Service) UpdateBracketUsage(guildID, userID string, openCount, closeCount int) error {
-	totalCount := openCount + closeCount
+func (s *Service) UpdateBracketUsage(guildID, userID string, halfWidthPairs, fullWidthPairs int) error {
+	totalPairs := halfWidthPairs + fullWidthPairs
 	query := `
-		INSERT INTO bracket_usage (guild_id, user_id, open_brackets, close_brackets, total_brackets, last_updated)
+		INSERT INTO bracket_usage (guild_id, user_id, half_width_pairs, full_width_pairs, total_pairs, last_updated)
 		VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 		ON CONFLICT(guild_id, user_id) DO UPDATE SET
-			open_brackets = open_brackets + ?,
-			close_brackets = close_brackets + ?,
-			total_brackets = total_brackets + ?,
+			half_width_pairs = half_width_pairs + ?,
+			full_width_pairs = full_width_pairs + ?,
+			total_pairs = total_pairs + ?,
 			last_updated = CURRENT_TIMESTAMP
 	`
-	_, err := s.db.Exec(query, guildID, userID, openCount, closeCount, totalCount, 
-		openCount, closeCount, totalCount)
+	_, err := s.db.Exec(query, guildID, userID, halfWidthPairs, fullWidthPairs, totalPairs, 
+		halfWidthPairs, fullWidthPairs, totalPairs)
 	return err
 }
 
 func (s *Service) GetBracketRanking(guildID string, limit int) ([]BracketStats, error) {
 	query := `
-		SELECT user_id, open_brackets, close_brackets, total_brackets
+		SELECT user_id, half_width_pairs, full_width_pairs, total_pairs
 		FROM bracket_usage
 		WHERE guild_id = ?
-		ORDER BY total_brackets DESC
+		ORDER BY total_pairs DESC
 		LIMIT ?
 	`
 	
@@ -578,7 +580,7 @@ func (s *Service) GetBracketRanking(guildID string, limit int) ([]BracketStats, 
 	var rankings []BracketStats
 	for rows.Next() {
 		var stats BracketStats
-		err := rows.Scan(&stats.UserID, &stats.OpenBrackets, &stats.CloseBrackets, &stats.TotalBrackets)
+		err := rows.Scan(&stats.UserID, &stats.HalfWidthPairs, &stats.FullWidthPairs, &stats.TotalPairs)
 		if err != nil {
 			continue
 		}
@@ -590,7 +592,7 @@ func (s *Service) GetBracketRanking(guildID string, limit int) ([]BracketStats, 
 
 func (s *Service) GetUserBracketStats(guildID, userID string) (*BracketStats, error) {
 	query := `
-		SELECT open_brackets, close_brackets, total_brackets
+		SELECT half_width_pairs, full_width_pairs, total_pairs
 		FROM bracket_usage
 		WHERE guild_id = ? AND user_id = ?
 	`
@@ -599,7 +601,7 @@ func (s *Service) GetUserBracketStats(guildID, userID string) (*BracketStats, er
 	stats.UserID = userID
 	
 	err := s.db.QueryRow(query, guildID, userID).Scan(
-		&stats.OpenBrackets, &stats.CloseBrackets, &stats.TotalBrackets,
+		&stats.HalfWidthPairs, &stats.FullWidthPairs, &stats.TotalPairs,
 	)
 	
 	if err == sql.ErrNoRows {
@@ -610,8 +612,8 @@ func (s *Service) GetUserBracketStats(guildID, userID string) (*BracketStats, er
 }
 
 type BracketStats struct {
-	UserID        string
-	OpenBrackets  int
-	CloseBrackets int
-	TotalBrackets int
+	UserID         string
+	HalfWidthPairs int
+	FullWidthPairs int
+	TotalPairs     int
 }

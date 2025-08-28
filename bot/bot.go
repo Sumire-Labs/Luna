@@ -89,28 +89,47 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 		log.Printf("Failed to upsert user %s: %v", m.Author.ID, err)
 	}
 	
-	// Count brackets in message
+	// Count bracket pairs in message
 	if m.GuildID != "" {
-		openCount := 0
-		closeCount := 0
+		halfWidthPairs, fullWidthPairs := b.countBracketPairs(m.Content)
+		totalPairs := halfWidthPairs + fullWidthPairs
 		
-		for _, r := range m.Content {
-			switch r {
-			case '(', '（':
-				openCount++
-			case ')', '）':
-				closeCount++
-			}
-		}
-		
-		// Update database if any brackets found
-		if openCount > 0 || closeCount > 0 {
-			err := b.db.UpdateBracketUsage(m.GuildID, m.Author.ID, openCount, closeCount)
+		// Update database if any bracket pairs found
+		if totalPairs > 0 {
+			err := b.db.UpdateBracketUsage(m.GuildID, m.Author.ID, halfWidthPairs, fullWidthPairs)
 			if err != nil {
 				log.Printf("Failed to update bracket usage: %v", err)
 			}
 		}
 	}
+}
+
+// countBracketPairs counts complete bracket pairs in the message
+func (b *Bot) countBracketPairs(content string) (halfWidth, fullWidth int) {
+	// Count half-width bracket pairs ()
+	halfWidth = b.countPairs(content, '(', ')')
+	
+	// Count full-width bracket pairs （）
+	fullWidth = b.countPairs(content, '（', '）')
+	
+	return
+}
+
+// countPairs counts complete pairs of open and close characters
+func (b *Bot) countPairs(content string, open, close rune) int {
+	openCount := 0
+	pairs := 0
+	
+	for _, r := range content {
+		if r == open {
+			openCount++
+		} else if r == close && openCount > 0 {
+			openCount--
+			pairs++
+		}
+	}
+	
+	return pairs
 }
 
 func (b *Bot) GetUptime() time.Duration {
