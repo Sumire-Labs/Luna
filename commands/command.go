@@ -103,6 +103,16 @@ func (c *Context) EditReplyEmbed(embed *discordgo.MessageEmbed) error {
 	return err
 }
 
+func (c *Context) ReplyWithComponents(embed *discordgo.MessageEmbed, components []discordgo.MessageComponent) error {
+	return c.Session.InteractionRespond(c.Interaction.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Embeds:     []*discordgo.MessageEmbed{embed},
+			Components: components,
+		},
+	})
+}
+
 func (c *Context) GetUser() *discordgo.User {
 	if c.Interaction.Member != nil {
 		return c.Interaction.Member.User

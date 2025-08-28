@@ -37,9 +37,15 @@ func (h *InteractionHandler) HandleComponentInteraction(s *discordgo.Session, i 
 	log.Printf("HandleComponentInteraction called with customID: %s", customID)
 
 	switch {
-	// War Thunder roulette interactions
-	case strings.HasPrefix(customID, "wt_spin_"):
-		h.handleWarThunderSpin(s, i)
+	// War Thunder BR roulette interactions
+	case strings.HasPrefix(customID, "br_mode_"):
+		h.handleBRModeSelect(s, i)
+	case customID == "br_exclude_settings":
+		h.handleBRExcludeSettings(s, i)
+	case strings.HasPrefix(customID, "br_spin_"):
+		h.handleBRSpin(s, i)
+	case customID == "br_return_menu":
+		h.handleBRReturnMenu(s, i)
 	// メインメニュー
 	case customID == "config_main_tickets":
 		h.handleTicketSetupStart(s, i)
@@ -391,6 +397,8 @@ func (h *InteractionHandler) HandleModalSubmit(s *discordgo.Session, i *discordg
 		h.handleEmbedEditRequestModal(s, i)
 	case data.CustomID == "modal_bump_settings":
 		h.handleBumpSettingsSubmit(s, i)
+	case data.CustomID == "br_exclude_modal":
+		h.handleBRExcludeModal(s, i)
 	}
 }
 
@@ -2272,21 +2280,126 @@ func (h *InteractionHandler) handleTicketCloseCancel(s *discordgo.Session, i *di
 	})
 }
 
-func (h *InteractionHandler) handleWarThunderSpin(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	// Parse custom ID: "wt_spin_{gamemode}_{minbr}_{maxbr}"
+// BR mode selection handler
+func (h *InteractionHandler) handleBRModeSelect(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	customID := i.MessageComponentData().CustomID
+	var gameMode services.GameMode
+	
+	switch customID {
+	case "br_mode_air":
+		gameMode = services.GameModeAir
+	case "br_mode_ground":
+		gameMode = services.GameModeGround
+	case "br_mode_naval":
+		gameMode = services.GameModeNaval
+	default:
+		return
+	}
+	
+	// Show spinning roulette animation first
+	spinningEmbed := embed.New().
+		SetTitle(fmt.Sprintf("%s War Thunder BR ルーレット", gameMode.Emoji())).
+		SetColor(h.getGameModeColor(gameMode)).
+		SetDescription("🎰 **ルーレット回転中...** 🎰").
+		SetImage("https://media.giphy.com/media/3oEjI67Egb456McTgQ/giphy.gif").
+		Build()
+	
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseUpdateMessage,
+		Data: &discordgo.InteractionResponseData{
+			Embeds: []*discordgo.MessageEmbed{spinningEmbed},
+			Components: []discordgo.MessageComponent{},
+		},
+	})
+	
+	// Wait for dramatic effect
+	time.Sleep(3 * time.Second)
+	
+	// Get user's excluded BRs from database or context (for now, we'll use empty exclusions)
+	excludedBRs := []float64{}
+	
+	// Get default BR range for the mode
+	wtService := services.NewWarThunderSimpleService()
+	minBR, maxBR := wtService.GetDefaultBRRange(gameMode)
+	
+	// Get random BR
+	selectedBR, err := wtService.GetRandomBR(gameMode, minBR, maxBR)
+	if err != nil {
+		s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+			Content: &[]string{fmt.Sprintf("❌ エラー: %s", err.Error())}[0],
+		})
+		return
+	}
+	
+	// Create result embed
+	resultEmbed := h.createBRResultEmbed(gameMode, selectedBR, excludedBRs)
+	
+	// Create components for result
+	components := []discordgo.MessageComponent{
+		discordgo.ActionsRow{
+			Components: []discordgo.MessageComponent{
+				discordgo.Button{
+					CustomID: fmt.Sprintf("br_spin_%s", gameMode),
+					Label:    "もう一回",
+					Style:    discordgo.PrimaryButton,
+					Emoji:    &discordgo.ComponentEmoji{Name: "🎲"},
+				},
+				discordgo.Button{
+					CustomID: "br_return_menu",
+					Label:    "メニューに戻る",
+					Style:    discordgo.SecondaryButton,
+					Emoji:    &discordgo.ComponentEmoji{Name: "🔙"},
+				},
+			},
+		},
+	}
+	
+	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+		Embeds:     &[]*discordgo.MessageEmbed{resultEmbed},
+		Components: &components,
+	})
+}
+
+// BR exclude settings modal handler
+func (h *InteractionHandler) handleBRExcludeSettings(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	// Show modal for BR exclusion settings
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseModal,
+		Data: &discordgo.InteractionResponseData{
+			CustomID: "br_exclude_modal",
+			Title:    "BR除外設定",
+			Components: []discordgo.MessageComponent{
+				discordgo.ActionsRow{
+					Components: []discordgo.MessageComponent{
+						discordgo.TextInput{
+							CustomID:    "excluded_brs",
+							Label:       "除外したいBR",
+							Style:       discordgo.TextInputParagraph,
+							Placeholder: "例: 1.0, 2.3, 5.7\nカンマ区切りで複数指定可能",
+							Required:    false,
+							MaxLength:   500,
+						},
+					},
+				},
+			},
+		},
+	})
+}
+
+// BR spin handler (when clicking "spin again")
+func (h *InteractionHandler) handleBRSpin(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	// Parse custom ID: "br_spin_{gamemode}"
 	parts := strings.Split(i.MessageComponentData().CustomID, "_")
-	if len(parts) < 5 {
+	if len(parts) < 3 {
 		return
 	}
 
 	gameModeStr := parts[2]
-	minBRStr := parts[3]
-	maxBRStr := parts[4]
-
-	minBR, _ := strconv.ParseFloat(minBRStr, 64)
-	maxBR, _ := strconv.ParseFloat(maxBRStr, 64)
-
 	gameMode := services.GameMode(gameModeStr)
+	
+	// Get default BR range for the mode
+	wtService := services.NewWarThunderSimpleService()
+	minBR, maxBR := wtService.GetDefaultBRRange(gameMode)
 	
 	// Get game mode color
 	color := 0x4285F4
@@ -2318,9 +2431,6 @@ func (h *InteractionHandler) handleWarThunderSpin(s *discordgo.Session, i *disco
 	// Wait for dramatic effect
 	time.Sleep(3 * time.Second)
 	
-	// Create new service instance for spin
-	wtService := services.NewWarThunderSimpleService()
-	
 	// Get random BR
 	selectedBR, err := wtService.GetRandomBR(gameMode, minBR, maxBR)
 	if err != nil {
@@ -2340,21 +2450,24 @@ func (h *InteractionHandler) handleWarThunderSpin(s *discordgo.Session, i *disco
 		SetDescription(fmt.Sprintf("# **%.1f**", selectedBR)).
 		SetImage(gifURL)
 	
-	// Add BR range info if custom
-	defaultMin, defaultMax := wtService.GetDefaultBRRange(gameMode)
-	if minBR != defaultMin || maxBR != defaultMax {
-		resultEmbed.SetFooter(fmt.Sprintf("BR範囲: %.1f - %.1f", minBR, maxBR), "")
-	}
+	// Always show BR range
+	resultEmbed.SetFooter(fmt.Sprintf("BR範囲: %.1f - %.1f", minBR, maxBR), "")
 	
 	// Update message with new result and spin again button
 	components := []discordgo.MessageComponent{
 		discordgo.ActionsRow{
 			Components: []discordgo.MessageComponent{
 				discordgo.Button{
-					CustomID: fmt.Sprintf("wt_spin_%s_%.1f_%.1f", gameMode, minBR, maxBR),
+					CustomID: fmt.Sprintf("br_spin_%s", gameMode),
 					Label:    "もう一回",
 					Style:    discordgo.PrimaryButton,
 					Emoji:    &discordgo.ComponentEmoji{Name: "🎲"},
+				},
+				discordgo.Button{
+					CustomID: "br_return_menu",
+					Label:    "メニューに戻る",
+					Style:    discordgo.SecondaryButton,
+					Emoji:    &discordgo.ComponentEmoji{Name: "🔙"},
 				},
 			},
 		},
@@ -2363,6 +2476,211 @@ func (h *InteractionHandler) handleWarThunderSpin(s *discordgo.Session, i *disco
 	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
 		Embeds:     &[]*discordgo.MessageEmbed{resultEmbed.Build()},
 		Components: &components,
+	})
+}
+
+// Helper function to create BR result embed
+func (h *InteractionHandler) createBRResultEmbed(gameMode services.GameMode, br float64, excludedBRs []float64) *discordgo.MessageEmbed {
+	color := h.getGameModeColor(gameMode)
+	
+	// Use spinning roulette GIF for all results
+	gifURL := "https://media.giphy.com/media/3oEjI67Egb456McTgQ/giphy.gif"
+	
+	builder := embed.New().
+		SetTitle(fmt.Sprintf("%s War Thunder BR ルーレット", gameMode.Emoji())).
+		SetColor(color).
+		SetDescription(fmt.Sprintf("# **%.1f**", br)).
+		SetImage(gifURL)
+	
+	// Get default range for this mode
+	wtService := services.NewWarThunderSimpleService()
+	minBR, maxBR := wtService.GetDefaultBRRange(gameMode)
+	builder.SetFooter(fmt.Sprintf("BR範囲: %.1f - %.1f", minBR, maxBR), "")
+	
+	// Add excluded BRs info if any
+	if len(excludedBRs) > 0 {
+		excludedStr := ""
+		for i, excludedBR := range excludedBRs {
+			if i > 0 {
+				excludedStr += ", "
+			}
+			excludedStr += fmt.Sprintf("%.1f", excludedBR)
+		}
+		builder.AddField("除外BR", excludedStr, false)
+	}
+	
+	return builder.Build()
+}
+
+// Helper function to get game mode color
+func (h *InteractionHandler) getGameModeColor(gameMode services.GameMode) int {
+	switch gameMode {
+	case services.GameModeAir:
+		return 0x87CEEB // Sky blue
+	case services.GameModeGround:
+		return 0x8B4513 // Saddle brown
+	case services.GameModeNaval:
+		return 0x1E90FF // Dodger blue
+	default:
+		return 0x4285F4 // Default blue
+	}
+}
+
+// Handle BR exclude modal submission
+func (h *InteractionHandler) handleBRExcludeModal(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	data := i.ModalSubmitData()
+	
+	// Get excluded BRs from modal
+	var excludedBRsText string
+	for _, component := range data.Components {
+		for _, comp := range component.(*discordgo.ActionsRow).Components {
+			textInput := comp.(*discordgo.TextInput)
+			if textInput.CustomID == "excluded_brs" {
+				excludedBRsText = textInput.Value
+				break
+			}
+		}
+	}
+	
+	// Parse excluded BRs
+	excludedBRs := []float64{}
+	if excludedBRsText != "" {
+		parts := strings.Split(excludedBRsText, ",")
+		for _, part := range parts {
+			trimmed := strings.TrimSpace(part)
+			if br, err := strconv.ParseFloat(trimmed, 64); err == nil {
+				excludedBRs = append(excludedBRs, br)
+			}
+		}
+	}
+	
+	// Store in user context or database (for now, just acknowledge)
+	// TODO: Store excluded BRs in database per user
+	
+	// Return to main menu with acknowledgment
+	message := "✅ BR除外設定を保存しました"
+	if len(excludedBRs) > 0 {
+		message += fmt.Sprintf(" (除外BR: ")
+		for i, br := range excludedBRs {
+			if i > 0 {
+				message += ", "
+			}
+			message += fmt.Sprintf("%.1f", br)
+		}
+		message += ")"
+	}
+	
+	// Recreate main menu embed
+	initialEmbed := embed.New().
+		SetTitle("🎮 War Thunder BR ルーレット").
+		SetColor(0x4285F4).
+		SetDescription("ゲームモードを選択してBRルーレットを回しましょう！\n\n" + message).
+		AddField("🛩️ 空軍", "BR 1.0 - 14.0", true).
+		AddField("🚗 陸軍", "BR 1.0 - 12.0", true).
+		AddField("🚢 海軍", "BR 1.0 - 8.7", true).
+		SetFooter("モードを選択後、ルーレットが回転します！", "").
+		Build()
+	
+	// Create selection components
+	components := []discordgo.MessageComponent{
+		discordgo.ActionsRow{
+			Components: []discordgo.MessageComponent{
+				discordgo.Button{
+					CustomID: "br_mode_air",
+					Label:    "空軍",
+					Style:    discordgo.PrimaryButton,
+					Emoji:    &discordgo.ComponentEmoji{Name: "🛩️"},
+				},
+				discordgo.Button{
+					CustomID: "br_mode_ground",
+					Label:    "陸軍",
+					Style:    discordgo.PrimaryButton,
+					Emoji:    &discordgo.ComponentEmoji{Name: "🚗"},
+				},
+				discordgo.Button{
+					CustomID: "br_mode_naval",
+					Label:    "海軍",
+					Style:    discordgo.PrimaryButton,
+					Emoji:    &discordgo.ComponentEmoji{Name: "🚢"},
+				},
+			},
+		},
+		discordgo.ActionsRow{
+			Components: []discordgo.MessageComponent{
+				discordgo.Button{
+					CustomID: "br_exclude_settings",
+					Label:    "BR除外設定",
+					Style:    discordgo.SecondaryButton,
+					Emoji:    &discordgo.ComponentEmoji{Name: "⚙️"},
+				},
+			},
+		},
+	}
+	
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseUpdateMessage,
+		Data: &discordgo.InteractionResponseData{
+			Embeds:     []*discordgo.MessageEmbed{initialEmbed},
+			Components: components,
+		},
+	})
+}
+
+// Handle return to menu button
+func (h *InteractionHandler) handleBRReturnMenu(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	// Recreate main menu embed
+	initialEmbed := embed.New().
+		SetTitle("🎮 War Thunder BR ルーレット").
+		SetColor(0x4285F4).
+		SetDescription("ゲームモードを選択してBRルーレットを回しましょう！\n\n除外したいBRがある場合は、先に「BR除外設定」ボタンで設定してください。").
+		AddField("🛩️ 空軍", "BR 1.0 - 14.0", true).
+		AddField("🚗 陸軍", "BR 1.0 - 12.0", true).
+		AddField("🚢 海軍", "BR 1.0 - 8.7", true).
+		SetFooter("モードを選択後、ルーレットが回転します！", "").
+		Build()
+	
+	// Create selection components
+	components := []discordgo.MessageComponent{
+		discordgo.ActionsRow{
+			Components: []discordgo.MessageComponent{
+				discordgo.Button{
+					CustomID: "br_mode_air",
+					Label:    "空軍",
+					Style:    discordgo.PrimaryButton,
+					Emoji:    &discordgo.ComponentEmoji{Name: "🛩️"},
+				},
+				discordgo.Button{
+					CustomID: "br_mode_ground",
+					Label:    "陸軍",
+					Style:    discordgo.PrimaryButton,
+					Emoji:    &discordgo.ComponentEmoji{Name: "🚗"},
+				},
+				discordgo.Button{
+					CustomID: "br_mode_naval",
+					Label:    "海軍",
+					Style:    discordgo.PrimaryButton,
+					Emoji:    &discordgo.ComponentEmoji{Name: "🚢"},
+				},
+			},
+		},
+		discordgo.ActionsRow{
+			Components: []discordgo.MessageComponent{
+				discordgo.Button{
+					CustomID: "br_exclude_settings",
+					Label:    "BR除外設定",
+					Style:    discordgo.SecondaryButton,
+					Emoji:    &discordgo.ComponentEmoji{Name: "⚙️"},
+				},
+			},
+		},
+	}
+	
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseUpdateMessage,
+		Data: &discordgo.InteractionResponseData{
+			Embeds:     []*discordgo.MessageEmbed{initialEmbed},
+			Components: components,
+		},
 	})
 }
 
