@@ -146,6 +146,20 @@ func (s *Service) Migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_tickets_creator ON tickets(creator_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)`,
 		`CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket ON ticket_messages(ticket_id)`,
+		`CREATE TABLE IF NOT EXISTS bracket_usage (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			guild_id TEXT NOT NULL,
+			user_id TEXT NOT NULL,
+			open_brackets INTEGER DEFAULT 0,
+			close_brackets INTEGER DEFAULT 0,
+			total_brackets INTEGER DEFAULT 0,
+			last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(guild_id, user_id),
+			FOREIGN KEY (guild_id) REFERENCES guilds(id),
+			FOREIGN KEY (user_id) REFERENCES users(id)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_bracket_usage_guild ON bracket_usage(guild_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_bracket_usage_total ON bracket_usage(total_brackets DESC)`,
 	}
 
 	for _, migration := range migrations {
@@ -527,4 +541,77 @@ func (s *Service) GetBumpableGuilds() ([]*GuildSettings, error) {
 	}
 	
 	return guilds, rows.Err()
+}
+
+// Bracket usage methods
+func (s *Service) UpdateBracketUsage(guildID, userID string, openCount, closeCount int) error {
+	totalCount := openCount + closeCount
+	query := `
+		INSERT INTO bracket_usage (guild_id, user_id, open_brackets, close_brackets, total_brackets, last_updated)
+		VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+		ON CONFLICT(guild_id, user_id) DO UPDATE SET
+			open_brackets = open_brackets + ?,
+			close_brackets = close_brackets + ?,
+			total_brackets = total_brackets + ?,
+			last_updated = CURRENT_TIMESTAMP
+	`
+	_, err := s.db.Exec(query, guildID, userID, openCount, closeCount, totalCount, 
+		openCount, closeCount, totalCount)
+	return err
+}
+
+func (s *Service) GetBracketRanking(guildID string, limit int) ([]BracketStats, error) {
+	query := `
+		SELECT user_id, open_brackets, close_brackets, total_brackets
+		FROM bracket_usage
+		WHERE guild_id = ?
+		ORDER BY total_brackets DESC
+		LIMIT ?
+	`
+	
+	rows, err := s.db.Query(query, guildID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	
+	var rankings []BracketStats
+	for rows.Next() {
+		var stats BracketStats
+		err := rows.Scan(&stats.UserID, &stats.OpenBrackets, &stats.CloseBrackets, &stats.TotalBrackets)
+		if err != nil {
+			continue
+		}
+		rankings = append(rankings, stats)
+	}
+	
+	return rankings, rows.Err()
+}
+
+func (s *Service) GetUserBracketStats(guildID, userID string) (*BracketStats, error) {
+	query := `
+		SELECT open_brackets, close_brackets, total_brackets
+		FROM bracket_usage
+		WHERE guild_id = ? AND user_id = ?
+	`
+	
+	var stats BracketStats
+	stats.UserID = userID
+	
+	err := s.db.QueryRow(query, guildID, userID).Scan(
+		&stats.OpenBrackets, &stats.CloseBrackets, &stats.TotalBrackets,
+	)
+	
+	if err == sql.ErrNoRows {
+		return &BracketStats{UserID: userID}, nil
+	}
+	
+	return &stats, err
+}
+
+type BracketStats struct {
+	UserID        string
+	OpenBrackets  int
+	CloseBrackets int
+	TotalBrackets int
 }
