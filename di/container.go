@@ -46,10 +46,12 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	// AI Service の初期化（オプション）
 	if cfg.GoogleCloud.UseStudioAPI && cfg.GoogleCloud.StudioAPIKey != "" {
 		// Google AI Studio API を優先
+		println("Debug: Using Google AI Studio API")
 		if err := container.initGeminiStudio(); err != nil {
 			println("Warning: Gemini Studio service initialization failed:", err.Error())
 		}
 	} else if cfg.GoogleCloud.ProjectID != "" {
+		println("Debug: Using Vertex AI with ProjectID:", cfg.GoogleCloud.ProjectID)
 		// 新しいVertex AI Gemini APIを使用
 		if err := container.initVertexGemini(); err != nil {
 			println("Warning: Vertex AI Gemini service initialization failed:", err.Error())
@@ -57,6 +59,16 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 		// Imagen用に旧APIも初期化
 		if err := container.initAIService(); err != nil {
 			println("Warning: Vertex AI service initialization failed:", err.Error())
+		}
+		// OCR・翻訳コマンド用にGemini Studioも初期化（StudioAPIKeyがある場合）
+		println("Debug: StudioAPIKey:", cfg.GoogleCloud.StudioAPIKey)
+		if cfg.GoogleCloud.StudioAPIKey != "" {
+			println("Debug: Initializing Gemini Studio for OCR/Translation")
+			if err := container.initGeminiStudio(); err != nil {
+				println("Warning: Gemini Studio service initialization failed:", err.Error())
+			}
+		} else {
+			println("Debug: StudioAPIKey is empty, OCR/Translation commands will not be available")
 		}
 	}
 	
@@ -171,9 +183,13 @@ func (c *Container) initCommands() {
 	}
 	
 	// OCR・翻訳コマンドの登録（Gemini Studio APIが利用可能な場合）
+	println("Debug: Checking GeminiStudio for OCR/Translation commands...")
 	if c.GeminiStudio != nil {
+		println("Debug: GeminiStudio is available, registering OCR and Translate commands")
 		c.CommandRegistry.Register(commands.NewOCRCommand(c.GeminiStudio))
 		c.CommandRegistry.Register(commands.NewTranslateCommand(c.GeminiStudio))
+	} else {
+		println("Debug: GeminiStudio is nil, OCR/Translation commands will not be registered")
 	}
 	
 	// War Thunder コマンドの登録
