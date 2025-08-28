@@ -12,12 +12,26 @@ import (
 )
 
 type OCRCommand struct {
-	aiService *ai.GeminiStudioService
+	geminiStudio *ai.GeminiStudioService
+	vertexGemini *ai.VertexGeminiService
 }
 
-func NewOCRCommand(aiService *ai.GeminiStudioService) *OCRCommand {
+func NewOCRCommand(geminiStudio *ai.GeminiStudioService) *OCRCommand {
 	return &OCRCommand{
-		aiService: aiService,
+		geminiStudio: geminiStudio,
+	}
+}
+
+func NewOCRCommandWithVertex(vertexGemini *ai.VertexGeminiService) *OCRCommand {
+	return &OCRCommand{
+		vertexGemini: vertexGemini,
+	}
+}
+
+func NewOCRCommandWithBoth(geminiStudio *ai.GeminiStudioService, vertexGemini *ai.VertexGeminiService) *OCRCommand {
+	return &OCRCommand{
+		geminiStudio: geminiStudio,
+		vertexGemini: vertexGemini,
 	}
 }
 
@@ -76,8 +90,8 @@ func (c *OCRCommand) Options() []*discordgo.ApplicationCommandOption {
 
 func (c *OCRCommand) Execute(ctx *Context) error {
 	// AIサービスが利用可能かチェック
-	if c.aiService == nil {
-		return ctx.ReplyEphemeral("❌ OCR機能は現在利用できません（Google AI Studio設定を確認してください）")
+	if c.geminiStudio == nil && c.vertexGemini == nil {
+		return ctx.ReplyEphemeral("❌ OCR機能は現在利用できません（AI設定を確認してください）")
 	}
 	
 	// オプションから情報を取得
@@ -146,8 +160,19 @@ func (c *OCRCommand) Execute(ctx *Context) error {
 		return nil
 	}
 	
-	// OCR処理実行
-	result, err := c.aiService.OCRWithGemini(aiCtx, imageData, mimeType, ctx.GetUser().ID, mode)
+	// OCR処理実行（利用可能なサービスを使用）
+	var result string
+	
+	if c.vertexGemini != nil {
+		// Vertex AI Geminiを優先使用
+		result, err = c.vertexGemini.OCRWithGemini(aiCtx, imageData, mimeType, ctx.GetUser().ID, mode)
+	} else if c.geminiStudio != nil {
+		// Google AI Studio APIを使用
+		result, err = c.geminiStudio.OCRWithGemini(aiCtx, imageData, mimeType, ctx.GetUser().ID, mode)
+	} else {
+		err = fmt.Errorf("OCR機能が利用できません")
+	}
+	
 	if err != nil {
 		errorEmbed := embed.New().
 			SetTitle("❌ OCR処理に失敗しました").
