@@ -20,7 +20,7 @@ func NewWTCommand() *WTCommand {
 }
 
 func (cmd *WTCommand) Name() string {
-	return "wt"
+	return "br"
 }
 
 func (cmd *WTCommand) Description() string {
@@ -28,7 +28,7 @@ func (cmd *WTCommand) Description() string {
 }
 
 func (cmd *WTCommand) Usage() string {
-	return "/wt [mode] [min_br] [max_br]"
+	return "/br"
 }
 
 func (cmd *WTCommand) Category() string {
@@ -44,120 +44,59 @@ func (cmd *WTCommand) Permission() int64 {
 }
 
 func (cmd *WTCommand) Options() []*discordgo.ApplicationCommandOption {
-	return []*discordgo.ApplicationCommandOption{
-		{
-			Type:        discordgo.ApplicationCommandOptionString,
-			Name:        "mode",
-			Description: "ゲームモード",
-			Required:    false,
-			Choices: []*discordgo.ApplicationCommandOptionChoice{
-				{Name: "🛩️ 空軍", Value: "air"},
-				{Name: "🚗 陸軍", Value: "ground"},
-				{Name: "🚢 海軍", Value: "naval"},
-			},
-		},
-		{
-			Type:        discordgo.ApplicationCommandOptionNumber,
-			Name:        "min_br",
-			Description: "最小BR",
-			Required:    false,
-		},
-		{
-			Type:        discordgo.ApplicationCommandOptionNumber,
-			Name:        "max_br",
-			Description: "最大BR",
-			Required:    false,
-		},
-	}
+	return []*discordgo.ApplicationCommandOption{}
 }
 
 func (cmd *WTCommand) Execute(ctx *Context) error {
-	// Get arguments
-	modeStr := ctx.GetStringArg("mode")
-	if modeStr == "" {
-		modeStr = "ground" // Default to ground
-	}
-	
-	gameMode := services.GameMode(modeStr)
-	
-	// Get default BR range for the mode
-	defaultMin, defaultMax := cmd.wtService.GetDefaultBRRange(gameMode)
-	
-	// Override if specified
-	minBR := defaultMin
-	maxBR := defaultMax
-	
-	if minArg, ok := ctx.GetArg("min_br"); ok {
-		if min, ok := minArg.(float64); ok {
-			minBR = min
-		}
-	}
-	
-	if maxArg, ok := ctx.GetArg("max_br"); ok {
-		if max, ok := maxArg.(float64); ok {
-			maxBR = max
-		}
-	}
-	
-	// Validate BR range
-	if minBR > maxBR {
-		return ctx.ReplyEphemeral("❌ 最小BRが最大BRより大きくなっています")
-	}
-	
-	// Defer reply for roulette spin animation
-	if err := ctx.DeferReply(false); err != nil {
-		return err
-	}
-	
-	// Show spinning roulette animation first
-	spinningEmbed := embed.New().
-		SetTitle(fmt.Sprintf("%s War Thunder BR ルーレット", gameMode.Emoji())).
-		SetColor(cmd.getGameModeColor(gameMode)).
-		SetDescription("🎰 **ルーレット回転中...** 🎰").
-		SetImage("https://media.giphy.com/media/3oEjI67Egb456McTgQ/giphy.gif"). // Spinning wheel GIF
+	// Create initial selection embed
+	initialEmbed := embed.New().
+		SetTitle("🎮 War Thunder BR ルーレット").
+		SetColor(0x4285F4).
+		SetDescription("ゲームモードを選択してBRルーレットを回しましょう！\n\n除外したいBRがある場合は、先に「BR除外設定」ボタンで設定してください。").
+		AddField("🛩️ 空軍", "BR 1.0 - 14.0", true).
+		AddField("🚗 陸軍", "BR 1.0 - 12.0", true).
+		AddField("🚢 海軍", "BR 1.0 - 8.7", true).
+		SetFooter("モードを選択後、ルーレットが回転します！", "").
 		Build()
 	
-	// Update with spinning animation
-	_, err := ctx.Session.InteractionResponseEdit(ctx.Interaction.Interaction, &discordgo.WebhookEdit{
-		Embeds: &[]*discordgo.MessageEmbed{spinningEmbed},
-	})
-	if err != nil {
-		return err
-	}
-	
-	// Wait for dramatic effect
-	time.Sleep(3 * time.Second)
-	
-	// Get random BR
-	selectedBR, err := cmd.wtService.GetRandomBR(gameMode, minBR, maxBR)
-	if err != nil {
-		return ctx.EditReply(fmt.Sprintf("❌ エラー: %s", err.Error()))
-	}
-	
-	// Create final result embed
-	resultEmbed := cmd.createResultEmbed(gameMode, selectedBR, minBR, maxBR)
-	
-	// Create simple spin again button
+	// Create selection components
 	components := []discordgo.MessageComponent{
 		discordgo.ActionsRow{
 			Components: []discordgo.MessageComponent{
 				discordgo.Button{
-					CustomID: fmt.Sprintf("wt_spin_%s_%.1f_%.1f", gameMode, minBR, maxBR),
-					Label:    "もう一回",
+					CustomID: "br_mode_air",
+					Label:    "空軍",
 					Style:    discordgo.PrimaryButton,
-					Emoji:    &discordgo.ComponentEmoji{Name: "🎲"},
+					Emoji:    &discordgo.ComponentEmoji{Name: "🛩️"},
+				},
+				discordgo.Button{
+					CustomID: "br_mode_ground",
+					Label:    "陸軍",
+					Style:    discordgo.PrimaryButton,
+					Emoji:    &discordgo.ComponentEmoji{Name: "🚗"},
+				},
+				discordgo.Button{
+					CustomID: "br_mode_naval",
+					Label:    "海軍",
+					Style:    discordgo.PrimaryButton,
+					Emoji:    &discordgo.ComponentEmoji{Name: "🚢"},
+				},
+			},
+		},
+		discordgo.ActionsRow{
+			Components: []discordgo.MessageComponent{
+				discordgo.Button{
+					CustomID: "br_exclude_settings",
+					Label:    "BR除外設定",
+					Style:    discordgo.SecondaryButton,
+					Emoji:    &discordgo.ComponentEmoji{Name: "⚙️"},
 				},
 			},
 		},
 	}
 	
-	// Update with final result
-	_, err = ctx.Session.InteractionResponseEdit(ctx.Interaction.Interaction, &discordgo.WebhookEdit{
-		Embeds:     &[]*discordgo.MessageEmbed{resultEmbed},
-		Components: &components,
-	})
-	
-	return err
+	// Send initial embed with components
+	return ctx.ReplyWithComponents(initialEmbed, components)
 }
 
 func (cmd *WTCommand) createResultEmbed(gameMode services.GameMode, br, minBR, maxBR float64) *discordgo.MessageEmbed {
