@@ -169,6 +169,9 @@ func (c *Container) initCommands() {
 	
 	// War Thunder コマンドの登録
 	c.CommandRegistry.Register(commands.NewWTCommand())
+	
+	// Brackets コマンドの登録
+	c.CommandRegistry.Register(commands.NewBracketsCommand(c.DatabaseService))
 }
 
 func (c *Container) Cleanup() error {

@@ -88,6 +88,29 @@ func (b *Bot) onMessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) 
 	if err != nil {
 		log.Printf("Failed to upsert user %s: %v", m.Author.ID, err)
 	}
+	
+	// Count brackets in message
+	if m.GuildID != "" {
+		openCount := 0
+		closeCount := 0
+		
+		for _, r := range m.Content {
+			switch r {
+			case '(', '（':
+				openCount++
+			case ')', '）':
+				closeCount++
+			}
+		}
+		
+		// Update database if any brackets found
+		if openCount > 0 || closeCount > 0 {
+			err := b.db.UpdateBracketUsage(m.GuildID, m.Author.ID, openCount, closeCount)
+			if err != nil {
+				log.Printf("Failed to update bracket usage: %v", err)
+			}
+		}
+	}
 }
 
 func (b *Bot) GetUptime() time.Duration {
