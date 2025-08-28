@@ -2,7 +2,6 @@ package commands
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/Sumire-Labs/Luna/embed"
