@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/Sumire-Labs/Luna/ai"
@@ -132,12 +134,20 @@ func (c *AICommand) Execute(ctx *Context) error {
 
 // ImageCommand は画像生成コマンドです
 type ImageCommand struct {
-	aiService *ai.Service
+	aiService    *ai.Service
+	geminiStudio *ai.GeminiStudioService
 }
 
 func NewImageCommand(aiService *ai.Service) *ImageCommand {
 	return &ImageCommand{
 		aiService: aiService,
+	}
+}
+
+func NewImageCommandWithGemini(aiService *ai.Service, geminiStudio *ai.GeminiStudioService) *ImageCommand {
+	return &ImageCommand{
+		aiService:    aiService,
+		geminiStudio: geminiStudio,
 	}
 }
 
@@ -203,8 +213,37 @@ func (c *ImageCommand) Execute(ctx *Context) error {
 		return ctx.ReplyEphemeral("❌ AI画像生成機能は現在利用できません（設定を確認してください）")
 	}
 	
+	// 処理中メッセージ
+	ctx.DeferReply(false)
+	
+	// 日本語を検出して英語に翻訳
+	translatedPrompt := prompt
+	wasTranslated := false
+	
+	if c.geminiStudio != nil && containsJapanese(prompt) {
+		translateEmbed := embed.New().
+			SetTitle("🔄 プロンプト最適化中...").
+			SetDescription("日本語を英語に変換して画像生成の品質を向上させています...").
+			SetColor(embed.M3Colors.Info)
+		
+		ctx.EditReplyEmbed(translateEmbed.Build())
+		
+		// 翻訳リクエスト
+		translationCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		
+		translationRequest := fmt.Sprintf(`Translate the following Japanese text to English for image generation. 
+Keep the meaning and artistic intent. Only respond with the English translation, nothing else:
+%s`, prompt)
+		
+		if translated, err := c.geminiStudio.AskGemini(translationCtx, translationRequest, ctx.GetUser().ID); err == nil {
+			translatedPrompt = strings.TrimSpace(translated)
+			wasTranslated = true
+		}
+	}
+	
 	// スタイルをプロンプトに追加
-	fullPrompt := prompt
+	fullPrompt := translatedPrompt
 	switch style {
 	case "artistic":
 		fullPrompt += ", artistic style, masterpiece"
@@ -218,16 +257,18 @@ func (c *ImageCommand) Execute(ctx *Context) error {
 		fullPrompt += ", pencil sketch, hand drawn, black and white"
 	}
 	
-	// 処理中メッセージ
-	ctx.DeferReply(false)
-	
 	// 生成開始メッセージ
 	startEmbed := embed.New().
 		SetTitle("🎨 画像生成中...").
 		SetDescription("AIが画像を生成しています。しばらくお待ちください...").
 		SetColor(embed.M3Colors.Info).
-		AddField("📝 プロンプト", prompt, false).
-		SetFooter("生成には30秒〜1分程度かかる場合があります", "")
+		AddField("📝 元のプロンプト", prompt, false)
+	
+	if wasTranslated {
+		startEmbed.AddField("🌐 英訳プロンプト", translatedPrompt, false)
+	}
+	
+	startEmbed.SetFooter("生成には30秒〜1分程度かかる場合があります", "")
 	
 	ctx.EditReplyEmbed(startEmbed.Build())
 	
@@ -288,4 +329,17 @@ func getStyleName(style string) string {
 		return name
 	}
 	return style
+}
+
+// containsJapanese checks if the string contains Japanese characters
+func containsJapanese(s string) bool {
+	for _, r := range s {
+		// Check for Hiragana (3040–309F), Katakana (30A0–30FF), Kanji (4E00–9FAF)
+		if unicode.Is(unicode.Hiragana, r) || 
+		   unicode.Is(unicode.Katakana, r) || 
+		   (r >= 0x4E00 && r <= 0x9FAF) {
+			return true
+		}
+	}
+	return false
 }
