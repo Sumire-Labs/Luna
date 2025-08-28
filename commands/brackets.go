@@ -24,7 +24,7 @@ func (cmd *BracketsCommand) Name() string {
 }
 
 func (cmd *BracketsCommand) Description() string {
-	return "かっこペア使用量ランキングを表示"
+	return "かっこ使用量ランキングを表示"
 }
 
 func (cmd *BracketsCommand) Usage() string {
@@ -80,16 +80,16 @@ func (cmd *BracketsCommand) showRanking(ctx *Context, guildID string) error {
 	if len(rankings) == 0 {
 		return ctx.ReplyEmbed(
 			embed.New().
-				SetTitle("📊 かっこペア使用量ランキング").
+				SetTitle("📊 かっこ使用量ランキング").
 				SetColor(0xFF6B6B).
-				SetDescription("まだデータがありません。\nメッセージに完全なかっこペア () （） を使ってみましょう！").
+				SetDescription("まだデータがありません。\nメッセージにかっこ () （） を使ってみましょう！\n※完全に閉じられたペアのみカウントされます").
 				Build(),
 		)
 	}
 
 	// Build ranking embed
 	embedBuilder := embed.New().
-		SetTitle("📊 かっこペア使用量ランキング TOP10").
+		SetTitle("📊 かっこ使用量ランキング TOP10").
 		SetColor(0x4285F4).
 		SetThumbnail("https://cdn.discordapp.com/attachments/123/456/brackets_icon.png")
 
@@ -114,7 +114,7 @@ func (cmd *BracketsCommand) showRanking(ctx *Context, guildID string) error {
 
 		// Format stats - show half-width and full-width pairs separately
 		description.WriteString(fmt.Sprintf(
-			"%s **%s**\n   () %d回  （） %d回  合計: **%d回**\n\n",
+			"%s **%s**\n   半角() %d回  全角（） %d回  合計: **%d回**\n\n",
 			medal, username,
 			stats.HalfWidthPairs, stats.FullWidthPairs,
 			stats.TotalPairs,
@@ -173,9 +173,9 @@ func (cmd *BracketsCommand) showUserStats(ctx *Context, guildID string, user *di
 	if stats.TotalPairs == 0 {
 		return ctx.ReplyEmbed(
 			embed.New().
-				SetTitle(fmt.Sprintf("📊 %s のかっこペア統計", user.Username)).
+				SetTitle(fmt.Sprintf("📊 %s のかっこ使用統計", user.Username)).
 				SetColor(0xFF6B6B).
-				SetDescription("まだデータがありません\n完全なかっこペア () （） を使ってみましょう！").
+				SetDescription("まだデータがありません\nかっこ () （） を使ってみましょう！\n※完全に閉じられたペアのみカウントされます").
 				SetThumbnail(user.AvatarURL("256")).
 				Build(),
 		)
@@ -196,20 +196,20 @@ func (cmd *BracketsCommand) showUserStats(ctx *Context, guildID string, user *di
 
 	// Build stats embed
 	embedBuilder := embed.New().
-		SetTitle(fmt.Sprintf("📊 %s のかっこペア統計", user.Username)).
+		SetTitle(fmt.Sprintf("📊 %s のかっこ使用統計", user.Username)).
 		SetColor(balanceColor).
 		SetThumbnail(user.AvatarURL("256"))
 
 	// Add fields
 	embedBuilder.
 		AddField("🏆 順位", fmt.Sprintf("**%d位** / %d人中", userRank, len(rankings)), true).
-		AddField("📈 合計ペア数", fmt.Sprintf("**%d回**", stats.TotalPairs), true).
-		AddField("✅ 状態", "完全ペア（バランス完璧！）", false)
+		AddField("📈 かっこ使用量", fmt.Sprintf("**%d回**", stats.TotalPairs), true).
+		AddField("✅ 状態", "完全に閉じられたペアのみ", false)
 
 	// Add detailed stats
 	embedBuilder.AddField(
 		"📊 詳細統計",
-		fmt.Sprintf("半角かっこペア `()`: **%d回**\n全角かっこペア `（）`: **%d回**",
+		fmt.Sprintf("半角かっこ `()`: **%d回**\n全角かっこ `（）`: **%d回**",
 			stats.HalfWidthPairs, stats.FullWidthPairs),
 		false,
 	)
@@ -222,11 +222,11 @@ func (cmd *BracketsCommand) showUserStats(ctx *Context, guildID string, user *di
 	
 	funFact := ""
 	if stats.TotalPairs > 500 {
-		funFact = "🔥 500ペア以上！かっこペアマスター！"
+		funFact = "🔥 500回以上！かっこマスター！"
 	} else if stats.TotalPairs > 100 {
-		funFact = "💪 100ペア以上！かなりのペアユーザー！"
+		funFact = "💪 100回以上！かっこヘビーユーザー！"
 	} else if stats.TotalPairs > 50 {
-		funFact = "👍 50ペア達成！順調にペアを使っています！"
+		funFact = "👍 50回達成！順調にかっこを使っています！"
 	}
 	
 	// Add preference comment

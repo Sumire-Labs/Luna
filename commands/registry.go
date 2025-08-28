@@ -79,9 +79,11 @@ func (r *Registry) RegisterSlashCommands() error {
 
 	for _, cmd := range r.GetAll() {
 		appCmd := &discordgo.ApplicationCommand{
-			Name:        cmd.Name(),
-			Description: cmd.Description(),
-			Options:     cmd.Options(),
+			Name:                     cmd.Name(),
+			Description:              cmd.Description(),
+			Options:                  cmd.Options(),
+			DefaultMemberPermissions: r.getDefaultPermissions(cmd),
+			DMPermission:             r.getDMPermission(cmd),
 		}
 		applicationCommands = append(applicationCommands, appCmd)
 	}
@@ -175,4 +177,34 @@ func (r *Registry) UnregisterSlashCommands() error {
 	}
 
 	return nil
+}
+
+// getDefaultPermissions returns the default permissions for a command
+func (r *Registry) getDefaultPermissions(cmd Command) *int64 {
+	perms := cmd.Permission()
+	if perms == 0 {
+		return nil // No restrictions - everyone can use
+	}
+	return &perms
+}
+
+// getDMPermission checks if command can be used in DMs
+func (r *Registry) getDMPermission(cmd Command) *bool {
+	// Commands that require guild context should not work in DMs
+	dmAllowed := true
+	dmNotAllowed := false
+	
+	switch cmd.Name() {
+	case "config", "lockdown", "purge", "activity", "brackets":
+		// These commands require guild context
+		return &dmNotAllowed
+	default:
+		// Check if command requires guild-specific permissions
+		if cmd.Permission() == discordgo.PermissionManageGuild ||
+		   cmd.Permission() == discordgo.PermissionManageChannels ||
+		   cmd.Permission() == discordgo.PermissionManageMessages {
+			return &dmNotAllowed
+		}
+		return &dmAllowed
+	}
 }
