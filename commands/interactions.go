@@ -1834,6 +1834,18 @@ func (h *InteractionHandler) handleTicketPanelSetup(s *discordgo.Session, i *dis
 		return
 	}
 
+	// 最初にインタラクションにレスポンスを返す（処理中メッセージ）
+	err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Flags: discordgo.MessageFlagsEphemeral,
+		},
+	})
+	if err != nil {
+		log.Printf("Failed to defer interaction: %v", err)
+		return
+	}
+
 	// チケット作成パネルを作成
 	panelEmbed := embed.New().
 		SetTitle("🎫 サポートチケット").
@@ -1869,23 +1881,18 @@ func (h *InteractionHandler) handleTicketPanelSetup(s *discordgo.Session, i *dis
 	})
 
 	if err != nil {
-		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseChannelMessageWithSource,
-			Data: &discordgo.InteractionResponseData{
-				Content: fmt.Sprintf("❌ チケットパネルの作成に失敗しました: %v", err),
-				Flags:   discordgo.MessageFlagsEphemeral,
-			},
+		// エラー時はフォローアップメッセージで通知
+		_, err = s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
+			Content: fmt.Sprintf("❌ チケットパネルの作成に失敗しました: %v", err),
+			Flags:   discordgo.MessageFlagsEphemeral,
 		})
 		return
 	}
 
-	// 成功メッセージ
-	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: "✅ チケットパネルを作成しました！ユーザーはボタンをクリックしてチケットを作成できます。",
-			Flags:   discordgo.MessageFlagsEphemeral,
-		},
+	// 成功時はフォローアップメッセージで通知
+	_, err = s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
+		Content: "✅ チケットパネルを作成しました！ユーザーはボタンをクリックしてチケットを作成できます。",
+		Flags:   discordgo.MessageFlagsEphemeral,
 	})
 }
 
