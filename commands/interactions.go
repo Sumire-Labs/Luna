@@ -145,7 +145,12 @@ func (h *InteractionHandler) handleWelcomeSetup(s *discordgo.Session, i *discord
 }
 
 func (h *InteractionHandler) handleLoggingSetup(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	log.Printf("handleLoggingSetup called for guild: %s, user: %s", i.GuildID, i.Member.User.ID)
+	// Nil check for Member
+	userID := "unknown"
+	if i.Member != nil && i.Member.User != nil {
+		userID = i.Member.User.ID
+	}
+	log.Printf("handleLoggingSetup called for guild: %s, user: %s", i.GuildID, userID)
 	
 	modal := discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseModal,
@@ -1964,6 +1969,18 @@ func (h *InteractionHandler) handleTicketCreate(s *discordgo.Session, i *discord
 func (h *InteractionHandler) handleTicketCreateModal(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	data := i.ModalSubmitData()
 	guildID := i.GuildID
+	
+	// Nil check for Member
+	if i.Member == nil || i.Member.User == nil {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "❌ ユーザー情報の取得に失敗しました",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
 	userID := i.Member.User.ID
 
 	var subject, description string
@@ -2078,6 +2095,18 @@ func (h *InteractionHandler) handleTicketCreateModal(s *discordgo.Session, i *di
 func (h *InteractionHandler) handleTicketClose(s *discordgo.Session, i *discordgo.InteractionCreate, customID string) {
 	channelID := strings.TrimPrefix(customID, "ticket_close_")
 	guildID := i.GuildID
+	
+	// Nil check for Member
+	if i.Member == nil || i.Member.User == nil {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "❌ ユーザー情報の取得に失敗しました",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
 	userID := i.Member.User.ID
 
 	// チケット設定を確認
@@ -2187,6 +2216,18 @@ func (h *InteractionHandler) handleTicketTranscript(s *discordgo.Session, i *dis
 func (h *InteractionHandler) handleTicketCloseConfirm(s *discordgo.Session, i *discordgo.InteractionCreate, customID string) {
 	channelID := strings.TrimPrefix(customID, "ticket_close_confirm_")
 	guildID := i.GuildID
+	
+	// Nil check for Member
+	if i.Member == nil || i.Member.User == nil {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "❌ ユーザー情報の取得に失敗しました",
+				Flags:   discordgo.MessageFlagsEphemeral,
+			},
+		})
+		return
+	}
 	userID := i.Member.User.ID
 
 	// 設定を取得
@@ -2202,12 +2243,13 @@ func (h *InteractionHandler) handleTicketCloseConfirm(s *discordgo.Session, i *d
 		return
 	}
 
-	// 処理中メッセージ
+	// 処理中メッセージ（ボタンを削除）
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Type: discordgo.InteractionResponseUpdateMessage,
 		Data: &discordgo.InteractionResponseData{
-			Content: "🔒 チケットを閉じています...",
-			Flags:   discordgo.MessageFlagsEphemeral,
+			Content:    "🔒 チケットを閉じています...",
+			Embeds:     []*discordgo.MessageEmbed{},
+			Components: []discordgo.MessageComponent{},
 		},
 	})
 
@@ -2238,10 +2280,12 @@ func (h *InteractionHandler) handleTicketCloseConfirm(s *discordgo.Session, i *d
 		s.ChannelDelete(channelID)
 	}()
 
-	// 成功メッセージ
+	// 成功メッセージ（ボタンを完全に削除）
 	successContent := fmt.Sprintf("✅ チケット「%s」を閉じました", channel.Name)
 	s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
-		Content: &successContent,
+		Content:    &successContent,
+		Embeds:     &[]*discordgo.MessageEmbed{},
+		Components: &[]discordgo.MessageComponent{},
 	})
 }
 
