@@ -118,7 +118,6 @@ func (s *Service) Migrate() error {
 			title TEXT NOT NULL,
 			description TEXT,
 			status TEXT DEFAULT 'open',
-			priority INTEGER DEFAULT 1,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			closed_at DATETIME,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -162,6 +161,16 @@ func (s *Service) Migrate() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_bracket_usage_guild_new ON bracket_usage(guild_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_bracket_usage_total_new ON bracket_usage(total_pairs DESC)`,
+		// Migration: Remove priority column from tickets table
+		`CREATE TABLE IF NOT EXISTS tickets_new AS SELECT 
+			id, guild_id, channel_id, creator_id, assigned_id, category, 
+			title, description, status, created_at, closed_at, updated_at 
+			FROM tickets`,
+		`DROP TABLE IF EXISTS tickets`,
+		`ALTER TABLE tickets_new RENAME TO tickets`,
+		`CREATE INDEX IF NOT EXISTS idx_tickets_guild_new ON tickets(guild_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_tickets_creator_new ON tickets(creator_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_tickets_status_new ON tickets(status)`,
 	}
 
 	for _, migration := range migrations {
