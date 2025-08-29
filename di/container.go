@@ -25,6 +25,7 @@ type Container struct {
 	AIService        *ai.Service
 	GeminiStudio     *ai.GeminiStudioService
 	VertexGemini     *ai.VertexGeminiService
+	AIServices       *ai.Services  // New: holds all AI services
 	BumpHandler      *bump.Handler
 }
 
@@ -43,21 +44,9 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 
 	container.initServices()
 	
-	// AI Service の初期化（オプション）
-	if cfg.GoogleCloud.UseStudioAPI && cfg.GoogleCloud.StudioAPIKey != "" {
-		// Google AI Studio API を優先
-		if err := container.initGeminiStudio(); err != nil {
-			println("Warning: Gemini Studio service initialization failed:", err.Error())
-		}
-	} else if cfg.GoogleCloud.ProjectID != "" {
-		// 新しいVertex AI Gemini APIを使用
-		if err := container.initVertexGemini(); err != nil {
-			println("Warning: Vertex AI Gemini service initialization failed:", err.Error())
-		}
-		// Imagen用に旧APIも初期化
-		if err := container.initAIService(); err != nil {
-			println("Warning: Vertex AI service initialization failed:", err.Error())
-		}
+	// AI Service の初期化（新しいファクトリーパターンを使用）
+	if err := container.initAIServicesWithFactory(); err != nil {
+		println("Warning: AI services initialization failed:", err.Error())
 	}
 	
 	container.initCommands()
@@ -106,6 +95,25 @@ func (c *Container) initServices() {
 	go c.BumpHandler.CheckPendingReminders()
 }
 
+func (c *Container) initAIServicesWithFactory() error {
+	factory := ai.NewFactory(&c.Config.GoogleCloud)
+	services, err := factory.CreateServices()
+	if err != nil {
+		return err
+	}
+	
+	// Store the services container
+	c.AIServices = services
+	
+	// Also store individual services for backward compatibility
+	c.GeminiStudio = services.GeminiStudio
+	c.VertexGemini = services.VertexGemini
+	c.AIService = services.LegacyService
+	
+	return nil
+}
+
+// Legacy methods kept for compatibility
 func (c *Container) initAIService() error {
 	aiService, err := ai.NewService(&c.Config.GoogleCloud)
 	if err != nil {
@@ -197,12 +205,9 @@ func (c *Container) Cleanup() error {
 		c.DB.Close()
 	}
 	
-	if c.AIService != nil {
-		c.AIService.Close()
-	}
-	
-	if c.VertexGemini != nil {
-		c.VertexGemini.Close()
+	// Close all AI services through the new container
+	if c.AIServices != nil {
+		c.AIServices.Close()
 	}
 
 	return nil
