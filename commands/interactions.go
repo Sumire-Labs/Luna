@@ -1947,19 +1947,6 @@ func (h *InteractionHandler) handleTicketCreate(s *discordgo.Session, i *discord
 						},
 					},
 				},
-				discordgo.ActionsRow{
-					Components: []discordgo.MessageComponent{
-						discordgo.TextInput{
-							CustomID:    "ticket_priority",
-							Label:       "優先度 (low/medium/high/urgent)",
-							Style:       discordgo.TextInputShort,
-							Placeholder: "low, medium, high, urgent のいずれかを入力",
-							Required:    false,
-							MaxLength:   10,
-							Value:       "medium",
-						},
-					},
-				},
 			},
 		},
 	}
@@ -1972,7 +1959,7 @@ func (h *InteractionHandler) handleTicketCreateModal(s *discordgo.Session, i *di
 	guildID := i.GuildID
 	userID := i.Member.User.ID
 
-	var subject, description, priority string
+	var subject, description string
 	for _, component := range data.Components {
 		for _, comp := range component.(*discordgo.ActionsRow).Components {
 			textInput := comp.(*discordgo.TextInput)
@@ -1981,14 +1968,8 @@ func (h *InteractionHandler) handleTicketCreateModal(s *discordgo.Session, i *di
 				subject = textInput.Value
 			case "ticket_description":
 				description = textInput.Value
-			case "ticket_priority":
-				priority = textInput.Value
 			}
 		}
-	}
-
-	if priority == "" {
-		priority = "medium"
 	}
 
 	settings, err := h.db.GetGuildSettings(guildID)
@@ -2051,23 +2032,11 @@ func (h *InteractionHandler) handleTicketCreateModal(s *discordgo.Session, i *di
 			0)
 	}
 
-	priorityEmoji := map[string]string{
-		"low":    "🟢",
-		"medium": "🟡", 
-		"high":   "🟠",
-		"urgent": "🔴",
-	}
-	emoji := priorityEmoji[priority]
-	if emoji == "" {
-		emoji = "🟡"
-	}
-
 	ticketEmbed := embed.New().
 		SetTitle(fmt.Sprintf("🎫 チケット #%s", ticketNumber)).
 		SetDescription(fmt.Sprintf("**件名:** %s", subject)).
 		SetColor(embed.M3Colors.Primary).
 		AddField("📝 詳細", description, false).
-		AddField("⚡ 優先度", fmt.Sprintf("%s %s", emoji, strings.ToUpper(priority)), true).
 		AddField("👤 作成者", fmt.Sprintf("<@%s>", userID), true).
 		SetFooter("サポートスタッフが対応いたします", "").
 		SetTimestamp()
