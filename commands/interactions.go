@@ -2276,8 +2276,15 @@ func (h *InteractionHandler) handleTicketCloseConfirm(s *discordgo.Session, i *d
 
 	// チャンネル削除（少し遅延をおいて実行）
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Panic recovered in channel delete goroutine: %v", r)
+			}
+		}()
 		time.Sleep(2 * time.Second)
-		s.ChannelDelete(channelID)
+		if _, err := s.ChannelDelete(channelID); err != nil {
+			log.Printf("Failed to delete ticket channel %s: %v", channelID, err)
+		}
 	}()
 
 	// 成功メッセージ（ボタンを完全に削除）
