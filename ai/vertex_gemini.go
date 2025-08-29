@@ -98,6 +98,11 @@ func (s *VertexGeminiService) AskGemini(ctx context.Context, question string, us
 		return "", fmt.Errorf("Geminiからの応答がありません")
 	}
 
+	// 候補の存在を確認
+	if len(resp.Candidates) == 0 {
+		return "", fmt.Errorf("AIからの回答候補がありません")
+	}
+	
 	// 最初の候補から回答を抽出
 	candidate := resp.Candidates[0]
 	if candidate.Content == nil || len(candidate.Content.Parts) == 0 {
@@ -150,6 +155,11 @@ func (s *VertexGeminiService) AskGeminiWithImage(ctx context.Context, question s
 		return "", fmt.Errorf("Geminiからの応答がありません")
 	}
 
+	// 候補の存在を確認
+	if len(resp.Candidates) == 0 {
+		return "", fmt.Errorf("AIからの回答候補がありません")
+	}
+	
 	// 最初の候補から回答を抽出
 	candidate := resp.Candidates[0]
 	if candidate.Content == nil || len(candidate.Content.Parts) == 0 {
@@ -242,6 +252,11 @@ func (s *VertexGeminiService) OCRWithGemini(ctx context.Context, imageData []byt
 		return "", fmt.Errorf("Geminiからの応答がありません")
 	}
 
+	// 候補の存在を確認
+	if len(resp.Candidates) == 0 {
+		return "", fmt.Errorf("AIからの回答候補がありません")
+	}
+	
 	// 最初の候補から回答を抽出
 	candidate := resp.Candidates[0]
 	if candidate.Content == nil || len(candidate.Content.Parts) == 0 {
