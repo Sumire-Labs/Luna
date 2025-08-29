@@ -416,8 +416,15 @@ func (h *InteractionHandler) handleTicketSetupModal(s *discordgo.Session, i *dis
 	var autoCloseHours = 24
 
 	for _, component := range data.Components {
-		for _, comp := range component.(*discordgo.ActionsRow).Components {
-			textInput := comp.(*discordgo.TextInput)
+		actionsRow, ok := component.(*discordgo.ActionsRow)
+		if !ok {
+			continue
+		}
+		for _, comp := range actionsRow.Components {
+			textInput, ok := comp.(*discordgo.TextInput)
+			if !ok {
+				continue
+			}
 			value := textInput.Value
 
 			switch textInput.CustomID {
@@ -566,8 +573,15 @@ func (h *InteractionHandler) handleLoggingSetupModal(s *discordgo.Session, i *di
 	var logChannelID string
 
 	for _, component := range data.Components {
-		for _, comp := range component.(*discordgo.ActionsRow).Components {
-			textInput := comp.(*discordgo.TextInput)
+		actionsRow, ok := component.(*discordgo.ActionsRow)
+		if !ok {
+			continue
+		}
+		for _, comp := range actionsRow.Components {
+			textInput, ok := comp.(*discordgo.TextInput)
+			if !ok {
+				continue
+			}
 			value := textInput.Value
 
 			switch textInput.CustomID {
@@ -1185,8 +1199,15 @@ func (h *InteractionHandler) handleEmbedCreateModal(s *discordgo.Session, i *dis
 	var title, description, colorStr, imageURL, footer string
 
 	for _, component := range data.Components {
-		for _, comp := range component.(*discordgo.ActionsRow).Components {
-			textInput := comp.(*discordgo.TextInput)
+		actionsRow, ok := component.(*discordgo.ActionsRow)
+		if !ok {
+			continue
+		}
+		for _, comp := range actionsRow.Components {
+			textInput, ok := comp.(*discordgo.TextInput)
+			if !ok {
+				continue
+			}
 			value := textInput.Value
 
 			switch textInput.CustomID {
@@ -1262,8 +1283,15 @@ func (h *InteractionHandler) handleEmbedEditModal(s *discordgo.Session, i *disco
 	var title, description, colorStr, imageURL, footer string
 
 	for _, component := range data.Components {
-		for _, comp := range component.(*discordgo.ActionsRow).Components {
-			textInput := comp.(*discordgo.TextInput)
+		actionsRow, ok := component.(*discordgo.ActionsRow)
+		if !ok {
+			continue
+		}
+		for _, comp := range actionsRow.Components {
+			textInput, ok := comp.(*discordgo.TextInput)
+			if !ok {
+				continue
+			}
 			value := textInput.Value
 
 			switch textInput.CustomID {
@@ -1426,8 +1454,15 @@ func (h *InteractionHandler) handleTemplateEditModal(s *discordgo.Session, i *di
 	var title, description, colorStr, footer string
 
 	for _, component := range data.Components {
-		for _, comp := range component.(*discordgo.ActionsRow).Components {
-			textInput := comp.(*discordgo.TextInput)
+		actionsRow, ok := component.(*discordgo.ActionsRow)
+		if !ok {
+			continue
+		}
+		for _, comp := range actionsRow.Components {
+			textInput, ok := comp.(*discordgo.TextInput)
+			if !ok {
+				continue
+			}
 			value := textInput.Value
 
 			switch textInput.CustomID {
